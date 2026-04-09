@@ -93,7 +93,7 @@ export default function NewClientPage() {
           <div className="flex gap-3 justify-center">
             <Link
               href={`/agency/clients/${newClientId}`}
-              className="px-5 py-2.5 bg-[#1B2B6B] text-white text-sm font-medium rounded-lg hover:bg-[#162358] transition-colors"
+              className="px-5 py-2.5 bg-navy text-white text-sm font-medium rounded-lg hover:bg-navy-600 transition-colors"
             >
               View Client
             </Link>
@@ -239,7 +239,7 @@ export default function NewClientPage() {
           <button
             type="submit"
             disabled={loading}
-            className="px-6 py-2.5 bg-[#E8622A] text-white text-sm font-medium rounded-lg hover:bg-[#D14E19] disabled:opacity-60 transition-colors"
+            className="px-6 py-2.5 bg-orange text-white text-sm font-medium rounded-lg hover:bg-orange-500 disabled:opacity-60 transition-colors"
           >
             {loading ? 'Saving…' : 'Add Client'}
           </button>
