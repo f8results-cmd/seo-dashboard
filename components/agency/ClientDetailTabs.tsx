@@ -137,19 +137,16 @@ function GBPTab({ client, gbpPosts, reviews }: {
   const services = (websiteData?.services ?? []) as Array<{ title?: string; meta_description?: string }>;
   const checklist = (websiteData?.checklist ?? {}) as Record<string, boolean>;
 
-  // GBP data from guide (set by gbp_agent) or fallback from website_data
+  // GBP data from guide (set by report_agent) or fallback from website_data
   const primaryCategory = gbpGuide.primary_category as string | undefined;
   const secondaryCategories = (gbpGuide.secondary_categories ?? []) as string[];
   const description = (gbpGuide.description ?? '') as string;
+  const geminiSummary = (gbpGuide.gemini_summary ?? '') as string;
   const gbpServices = (gbpGuide.services ?? services.slice(0, 10).map((s) => ({
     name: s.title ?? '', description: s.meta_description ?? '',
   }))) as Array<{ name: string; description: string }>;
   const attributes = (gbpGuide.attributes ?? []) as string[];
-  const qa = (gbpGuide.qa ??
-    ((websiteData?.pages as Record<string, unknown>)?.homepage as Record<string, unknown>)?.faqs ??
-    []
-  ) as Array<{ question: string; answer: string }>;
-  const photosChecklist = (gbpGuide.photos_checklist ?? [
+  const photosChecklist = (gbpGuide.photo_checklist ?? gbpGuide.photos_checklist ?? [
     'Exterior — front of business during business hours',
     'Interior — reception or main working area',
     'Team — owner and staff in uniform',
@@ -211,7 +208,10 @@ function GBPTab({ client, gbpPosts, reviews }: {
           )}
           {secondaryCategories.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-gray-500 mb-2">Secondary Categories (add up to 9)</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-500">Secondary Categories (add up to 9)</p>
+                <CopyButton text={secondaryCategories.join('\n')} label="Copy All" />
+              </div>
               <div className="space-y-1.5">
                 {secondaryCategories.map((cat, i) => (
                   <div key={i} className="flex items-center gap-2">
@@ -235,6 +235,19 @@ function GBPTab({ client, gbpPosts, reviews }: {
             <CopyButton text={description} />
           </div>
           <p className="text-xs text-gray-400 mt-1.5">{description.length} / 750 characters</p>
+        </GBPSection>
+      )}
+
+      {/* Gemini AI Summary */}
+      {geminiSummary && (
+        <GBPSection title="Gemini AI Summary" doneKey="gemini_summary" checklist={checklist} onMarkDone={markDone}>
+          <div className="flex items-start gap-2">
+            <div className="flex-1 text-sm bg-blue-50 border border-blue-100 px-4 py-3 rounded-lg whitespace-pre-wrap leading-relaxed text-blue-900">
+              {geminiSummary}
+            </div>
+            <CopyButton text={geminiSummary} />
+          </div>
+          <p className="text-xs text-gray-400 mt-1.5">Google uses this to brief Gemini AI when customers ask about your business. Add to Google Search Console and GBP short description.</p>
         </GBPSection>
       )}
 
@@ -268,25 +281,6 @@ function GBPTab({ client, gbpPosts, reviews }: {
                   onChange={(v) => markDone(`attr_${i}`, v)}
                 />
                 <span className="text-gray-700">{attr}</span>
-              </div>
-            ))}
-          </div>
-        </GBPSection>
-      )}
-
-      {/* Q&A */}
-      {qa.length > 0 && (
-        <GBPSection title="Q&A (add to GBP)" doneKey="qa" checklist={checklist} onMarkDone={markDone}>
-          <div className="space-y-3">
-            {qa.map((item, i) => (
-              <div key={i} className="bg-gray-50 rounded-lg px-4 py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-gray-800 mb-1">Q: {item.question}</p>
-                    <p className="text-sm text-gray-600">A: {item.answer}</p>
-                  </div>
-                  <CopyButton text={`Q: ${item.question}\nA: ${item.answer}`} />
-                </div>
               </div>
             ))}
           </div>
