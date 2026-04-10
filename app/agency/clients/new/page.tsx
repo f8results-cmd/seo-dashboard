@@ -30,7 +30,8 @@ interface FormData {
   google_tag_id: string;
   skip_website: boolean;
   auto_respond_reviews: boolean;
-  notes: string;
+  blog_delivery: string;
+  agency_notes: string;
 }
 
 const INITIAL: FormData = {
@@ -41,13 +42,14 @@ const INITIAL: FormData = {
   brand_primary_color: '#1B2B6B', brand_accent_color: '#E8622A',
   ghl_location_id: '', ghl_api_key: '', ghl_webhook_url: '',
   google_maps_embed_url: '', google_place_id: '', google_tag_id: '',
-  skip_website: false, auto_respond_reviews: false, notes: '',
+  skip_website: false, auto_respond_reviews: false, blog_delivery: 'auto-publish', agency_notes: '',
 };
 
 const AU_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
 const NICHES = [
   'plumber', 'electrician', 'window cleaning', 'automotive',
-  'cleaning', 'landscaping', 'other',
+  'cleaning', 'landscaping', 'painter', 'carpenter', 'mechanic',
+  'dentist', 'physio', 'restaurant', 'retail', 'other',
 ];
 
 export default function NewClientPage() {
@@ -216,7 +218,7 @@ export default function NewClientPage() {
             <Field label="GBP Location Name" hint="Format: accounts/{id}/locations/{id}" className="sm:col-span-2">
               <input type="text" value={form.gbp_location_name} onChange={(e) => update('gbp_location_name', e.target.value)} placeholder="accounts/1234/locations/5678" className={inputCls} />
             </Field>
-            <Field label="Google Place ID">
+            <Field label="Google Place ID" hint="Find this in the Google Maps URL for their business">
               <input type="text" value={form.google_place_id} onChange={(e) => update('google_place_id', e.target.value)} placeholder="ChIJ…" className={inputCls} />
             </Field>
             <Field label="Google Tag ID">
@@ -265,11 +267,44 @@ export default function NewClientPage() {
         <Section title="Pipeline Settings">
           <div className="space-y-4">
             <Toggle
-              label="Skip website build"
-              description="Skip design, deploy, and suburb agents — use when client already has a website"
-              checked={form.skip_website}
-              onChange={(v) => update('skip_website', v)}
+              label="Website managed by Figure8 Results"
+              description="Turn off if the client manages their own website"
+              checked={!form.skip_website}
+              onChange={(v) => update('skip_website', !v)}
             />
+            {!form.skip_website ? (
+              <div className="pl-1">
+                <p className="text-xs font-medium text-gray-600 mb-2">Blog delivery method</p>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="blog_delivery"
+                      value="auto-publish"
+                      checked={form.blog_delivery === 'auto-publish'}
+                      onChange={() => update('blog_delivery', 'auto-publish')}
+                      className="accent-[#1B2B6B]"
+                    />
+                    <span className="text-sm text-gray-700">Auto-publish to website</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="blog_delivery"
+                      value="email"
+                      checked={form.blog_delivery === 'email'}
+                      onChange={() => update('blog_delivery', 'email')}
+                      className="accent-[#1B2B6B]"
+                    />
+                    <span className="text-sm text-gray-700">Email for manual upload</span>
+                  </label>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                <p className="text-sm text-amber-700">Pipeline will skip website build — blog posts will be emailed for manual upload.</p>
+              </div>
+            )}
             <Toggle
               label="Auto-respond to reviews"
               description="Automatically post AI-drafted responses to new reviews"
@@ -283,8 +318,8 @@ export default function NewClientPage() {
         <Section title="Agency Notes">
           <textarea
             rows={4}
-            value={form.notes}
-            onChange={(e) => update('notes', e.target.value)}
+            value={form.agency_notes}
+            onChange={(e) => update('agency_notes', e.target.value)}
             placeholder="Any special requirements, context, or notes about this client…"
             className={`${inputCls} w-full`}
           />

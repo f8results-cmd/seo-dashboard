@@ -21,7 +21,8 @@ export interface Client {
   brand_accent_color: string | null;
   ghl_location_id: string | null;
   ghl_api_key: string | null;
-  notes: string | null;
+  agency_notes: string | null;
+  blog_delivery: string | null;
   status: ClientStatus;
   live_url: string | null;
   github_repo: string | null;

@@ -24,7 +24,7 @@ interface FormData {
   brand_primary_color: string;
   brand_accent_color: string;
   ghl_location_id: string;
-  notes: string;
+  agency_notes: string;
 }
 
 const INITIAL: FormData = {
@@ -32,7 +32,7 @@ const INITIAL: FormData = {
   address: '', city: '', state: 'SA', niche: '',
   website_url: '', gbp_url: '', years_in_business: '',
   brand_primary_color: '#1B2B6B', brand_accent_color: '#E8622A',
-  ghl_location_id: '', notes: '',
+  ghl_location_id: '', agency_notes: '',
 };
 
 export default function OnboardingPage() {
@@ -208,9 +208,9 @@ export default function OnboardingPage() {
           <Section title="Agency Notes">
             <textarea
               rows={4}
-              value={form.notes}
-              onChange={(e) => update('notes', e.target.value)}
-              placeholder="Any special requirements, context, or notes about this client…"
+              value={form.agency_notes}
+              onChange={(e) => update('agency_notes', e.target.value)}
+              placeholder="Any special requirements, context, or agency_notes about this client…"
               className={`${inputCls} w-full`}
             />
           </Section>

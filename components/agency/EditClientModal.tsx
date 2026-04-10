@@ -4,6 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Client } from '@/lib/types';
 
+const NICHES = [
+  'plumber', 'electrician', 'window cleaning', 'automotive',
+  'cleaning', 'landscaping', 'painter', 'carpenter', 'mechanic',
+  'dentist', 'physio', 'restaurant', 'retail', 'other',
+];
+
 interface EditClientModalProps {
   client: Client;
   onClose: () => void;
@@ -41,7 +47,8 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
     google_tag_id: client.google_tag_id ?? '',
     skip_website: client.skip_website ?? false,
     auto_respond_reviews: client.auto_respond_reviews ?? false,
-    notes: client.notes ?? '',
+    blog_delivery: client.blog_delivery ?? 'auto-publish',
+    agency_notes: client.agency_notes ?? '',
   });
 
   function set(field: string, value: string | boolean) {
@@ -74,7 +81,8 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
         google_maps_embed_url: form.google_maps_embed_url || null,
         google_place_id: form.google_place_id || null,
         google_tag_id: form.google_tag_id || null,
-        notes: form.notes || null,
+        agency_notes: form.agency_notes || null,
+        blog_delivery: form.blog_delivery || null,
       };
 
       const res = await fetch(`/api/clients/${client.id}`, {
@@ -125,7 +133,12 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
                 <input className={input} value={form.owner_name} onChange={(e) => set('owner_name', e.target.value)} />
               </Field>
               <Field label="Niche">
-                <input className={input} value={form.niche} onChange={(e) => set('niche', e.target.value)} placeholder="e.g. Plumber" />
+                <select className={input} value={form.niche} onChange={(e) => set('niche', e.target.value)}>
+                  <option value="">Select niche…</option>
+                  {NICHES.map((n) => (
+                    <option key={n} value={n}>{n.charAt(0).toUpperCase() + n.slice(1)}</option>
+                  ))}
+                </select>
               </Field>
             </div>
             <Field label="Tagline">
@@ -238,11 +251,42 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
           {/* Pipeline Settings */}
           <Section title="Pipeline Settings">
             <Toggle
-              label="Skip website build"
-              description="Skip design, deploy, and suburb agents — use when client already has a website"
-              checked={form.skip_website}
-              onChange={(v) => set('skip_website', v)}
+              label="Website managed by Figure8 Results"
+              description="Turn off if the client manages their own website"
+              checked={!form.skip_website}
+              onChange={(v) => set('skip_website', !v)}
             />
+            {!form.skip_website ? (
+              <div>
+                <p className="text-xs font-medium text-gray-600 mb-2">Blog delivery method</p>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="edit_blog_delivery"
+                      value="auto-publish"
+                      checked={form.blog_delivery === 'auto-publish'}
+                      onChange={() => set('blog_delivery', 'auto-publish')}
+                    />
+                    <span className="text-sm text-gray-700">Auto-publish to website</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="edit_blog_delivery"
+                      value="email"
+                      checked={form.blog_delivery === 'email'}
+                      onChange={() => set('blog_delivery', 'email')}
+                    />
+                    <span className="text-sm text-gray-700">Email for manual upload</span>
+                  </label>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                <p className="text-sm text-amber-700">Pipeline will skip website build — blog posts will be emailed for manual upload.</p>
+              </div>
+            )}
             <Toggle
               label="Auto-respond to reviews"
               description="Automatically post AI-drafted responses to new reviews"
@@ -252,12 +296,12 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
           </Section>
 
           {/* Notes */}
-          <Section title="Notes">
+          <Section title="Agency Notes">
             <textarea
               className={`${input} resize-none`}
               rows={4}
-              value={form.notes}
-              onChange={(e) => set('notes', e.target.value)}
+              value={form.agency_notes}
+              onChange={(e) => set('agency_notes', e.target.value)}
               placeholder="Internal notes about this client..."
             />
           </Section>
