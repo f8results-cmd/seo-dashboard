@@ -22,19 +22,24 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
     address: client.address ?? '',
     city: client.city ?? '',
     state: client.state ?? '',
+    postcode: client.postcode ?? '',
     niche: client.niche ?? '',
     website_url: client.website_url ?? '',
     gbp_url: client.gbp_url ?? '',
     gbp_location_name: client.gbp_location_name ?? '',
     tagline: client.tagline ?? '',
     years_in_business: client.years_in_business?.toString() ?? '',
+    review_count: client.review_count?.toString() ?? '',
+    review_rating: client.review_rating?.toString() ?? '',
     brand_primary_color: client.brand_primary_color ?? '#1B2B6B',
     brand_accent_color: client.brand_accent_color ?? '#E8622A',
     ghl_location_id: client.ghl_location_id ?? '',
     ghl_api_key: client.ghl_api_key ?? '',
+    ghl_webhook_url: client.ghl_webhook_url ?? '',
     google_maps_embed_url: client.google_maps_embed_url ?? '',
     google_place_id: client.google_place_id ?? '',
     google_tag_id: client.google_tag_id ?? '',
+    skip_website: client.skip_website ?? false,
     auto_respond_reviews: client.auto_respond_reviews ?? false,
     notes: client.notes ?? '',
   });
@@ -50,11 +55,14 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
       const payload: Record<string, unknown> = {
         ...form,
         years_in_business: form.years_in_business ? parseInt(form.years_in_business) : null,
+        review_count: form.review_count ? parseInt(form.review_count) : null,
+        review_rating: form.review_rating ? parseFloat(form.review_rating) : null,
         owner_name: form.owner_name || null,
         phone: form.phone || null,
         address: form.address || null,
         city: form.city || null,
         state: form.state || null,
+        postcode: form.postcode || null,
         niche: form.niche || null,
         website_url: form.website_url || null,
         gbp_url: form.gbp_url || null,
@@ -62,6 +70,7 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
         tagline: form.tagline || null,
         ghl_location_id: form.ghl_location_id || null,
         ghl_api_key: form.ghl_api_key || null,
+        ghl_webhook_url: form.ghl_webhook_url || null,
         google_maps_embed_url: form.google_maps_embed_url || null,
         google_place_id: form.google_place_id || null,
         google_tag_id: form.google_tag_id || null,
@@ -122,9 +131,17 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
             <Field label="Tagline">
               <input className={input} value={form.tagline} onChange={(e) => set('tagline', e.target.value)} />
             </Field>
-            <Field label="Years in Business">
-              <input className={input} type="number" min="0" value={form.years_in_business} onChange={(e) => set('years_in_business', e.target.value)} />
-            </Field>
+            <div className="grid grid-cols-3 gap-4">
+              <Field label="Years in Business">
+                <input className={input} type="number" min="0" value={form.years_in_business} onChange={(e) => set('years_in_business', e.target.value)} />
+              </Field>
+              <Field label="Review Count">
+                <input className={input} type="number" min="0" value={form.review_count} onChange={(e) => set('review_count', e.target.value)} placeholder="e.g. 47" />
+              </Field>
+              <Field label="Review Rating">
+                <input className={input} type="number" min="1" max="5" step="0.1" value={form.review_rating} onChange={(e) => set('review_rating', e.target.value)} placeholder="e.g. 4.8" />
+              </Field>
+            </div>
           </Section>
 
           {/* Contact */}
@@ -140,12 +157,15 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
             <Field label="Address">
               <input className={input} value={form.address} onChange={(e) => set('address', e.target.value)} />
             </Field>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <Field label="City">
                 <input className={input} value={form.city} onChange={(e) => set('city', e.target.value)} />
               </Field>
               <Field label="State">
                 <input className={input} value={form.state} onChange={(e) => set('state', e.target.value)} placeholder="e.g. SA" />
+              </Field>
+              <Field label="Postcode">
+                <input className={input} value={form.postcode} onChange={(e) => set('postcode', e.target.value)} placeholder="e.g. 5000" />
               </Field>
             </div>
           </Section>
@@ -195,6 +215,9 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
                 <input className={input} type="password" value={form.ghl_api_key} onChange={(e) => set('ghl_api_key', e.target.value)} />
               </Field>
             </div>
+            <Field label="GHL Webhook URL" hint="Used for GBP post scheduling via GoHighLevel">
+              <input className={input} value={form.ghl_webhook_url} onChange={(e) => set('ghl_webhook_url', e.target.value)} placeholder="https://..." />
+            </Field>
           </Section>
 
           {/* Google */}
@@ -212,8 +235,14 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
             </div>
           </Section>
 
-          {/* Settings */}
-          <Section title="Settings">
+          {/* Pipeline Settings */}
+          <Section title="Pipeline Settings">
+            <Toggle
+              label="Skip website build"
+              description="Skip design, deploy, and suburb agents — use when client already has a website"
+              checked={form.skip_website}
+              onChange={(v) => set('skip_website', v)}
+            />
             <Toggle
               label="Auto-respond to reviews"
               description="Automatically post AI-drafted responses to new reviews"

@@ -26,6 +26,8 @@ export interface Client {
   live_url: string | null;
   github_repo: string | null;
   website_data: Record<string, unknown> | null;
+  postcode: string | null;
+  skip_website: boolean;
   ghl_webhook_url: string | null;
   google_maps_embed_url: string | null;
   google_place_id: string | null;

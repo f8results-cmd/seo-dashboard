@@ -11,25 +11,37 @@ interface FormData {
   address: string;
   city: string;
   state: string;
+  postcode: string;
   niche: string;
   website_url: string;
   gbp_url: string;
+  gbp_location_name: string;
   tagline: string;
   years_in_business: string;
+  review_count: string;
+  review_rating: string;
   brand_primary_color: string;
   brand_accent_color: string;
   ghl_location_id: string;
   ghl_api_key: string;
+  ghl_webhook_url: string;
+  google_maps_embed_url: string;
+  google_place_id: string;
+  google_tag_id: string;
+  skip_website: boolean;
+  auto_respond_reviews: boolean;
   notes: string;
 }
 
 const INITIAL: FormData = {
   business_name: '', owner_name: '', email: '', phone: '',
-  address: '', city: '', state: 'SA', niche: '',
-  website_url: '', gbp_url: '', tagline: '',
-  years_in_business: '', brand_primary_color: '#1B2B6B',
-  brand_accent_color: '#E8622A', ghl_location_id: '',
-  ghl_api_key: '', notes: '',
+  address: '', city: '', state: 'SA', postcode: '', niche: '',
+  website_url: '', gbp_url: '', gbp_location_name: '', tagline: '',
+  years_in_business: '', review_count: '', review_rating: '',
+  brand_primary_color: '#1B2B6B', brand_accent_color: '#E8622A',
+  ghl_location_id: '', ghl_api_key: '', ghl_webhook_url: '',
+  google_maps_embed_url: '', google_place_id: '', google_tag_id: '',
+  skip_website: false, auto_respond_reviews: false, notes: '',
 };
 
 const AU_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
@@ -44,7 +56,7 @@ export default function NewClientPage() {
   const [error, setError] = useState('');
   const [newClientId, setNewClientId] = useState<string | null>(null);
 
-  function update(field: keyof FormData, value: string) {
+  function update(field: keyof FormData, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
@@ -54,10 +66,17 @@ export default function NewClientPage() {
     setError('');
 
     try {
+      const payload = {
+        ...form,
+        years_in_business: form.years_in_business ? parseInt(form.years_in_business) : null,
+        review_count: form.review_count ? parseInt(form.review_count) : null,
+        review_rating: form.review_rating ? parseFloat(form.review_rating) : null,
+      };
+
       const res = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -141,6 +160,12 @@ export default function NewClientPage() {
             <Field label="Years in Business">
               <input type="number" min={0} value={form.years_in_business} onChange={(e) => update('years_in_business', e.target.value)} className={inputCls} />
             </Field>
+            <Field label="Review Count">
+              <input type="number" min={0} value={form.review_count} onChange={(e) => update('review_count', e.target.value)} placeholder="e.g. 47" className={inputCls} />
+            </Field>
+            <Field label="Review Rating">
+              <input type="number" min={1} max={5} step={0.1} value={form.review_rating} onChange={(e) => update('review_rating', e.target.value)} placeholder="e.g. 4.8" className={inputCls} />
+            </Field>
             <Field label="Tagline" className="sm:col-span-2">
               <input type="text" value={form.tagline} onChange={(e) => update('tagline', e.target.value)} placeholder="Short tagline for the business" className={inputCls} />
             </Field>
@@ -173,6 +198,9 @@ export default function NewClientPage() {
                 {AU_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>
+            <Field label="Postcode">
+              <input type="text" value={form.postcode} onChange={(e) => update('postcode', e.target.value)} placeholder="e.g. 5000" className={inputCls} />
+            </Field>
           </div>
         </Section>
 
@@ -184,6 +212,18 @@ export default function NewClientPage() {
             </Field>
             <Field label="Google Business Profile URL">
               <input type="url" value={form.gbp_url} onChange={(e) => update('gbp_url', e.target.value)} placeholder="https://maps.google.com/…" className={inputCls} />
+            </Field>
+            <Field label="GBP Location Name" hint="Format: accounts/{id}/locations/{id}" className="sm:col-span-2">
+              <input type="text" value={form.gbp_location_name} onChange={(e) => update('gbp_location_name', e.target.value)} placeholder="accounts/1234/locations/5678" className={inputCls} />
+            </Field>
+            <Field label="Google Place ID">
+              <input type="text" value={form.google_place_id} onChange={(e) => update('google_place_id', e.target.value)} placeholder="ChIJ…" className={inputCls} />
+            </Field>
+            <Field label="Google Tag ID">
+              <input type="text" value={form.google_tag_id} onChange={(e) => update('google_tag_id', e.target.value)} placeholder="G-XXXXXXXXXX" className={inputCls} />
+            </Field>
+            <Field label="Google Maps Embed URL" className="sm:col-span-2">
+              <input type="text" value={form.google_maps_embed_url} onChange={(e) => update('google_maps_embed_url', e.target.value)} placeholder="https://www.google.com/maps/embed?pb=…" className={inputCls} />
             </Field>
           </div>
         </Section>
@@ -215,6 +255,27 @@ export default function NewClientPage() {
             <Field label="GHL API Key">
               <input type="password" value={form.ghl_api_key} onChange={(e) => update('ghl_api_key', e.target.value)} className={inputCls} />
             </Field>
+            <Field label="GHL Webhook URL" hint="Used for GBP post scheduling via GoHighLevel" className="sm:col-span-2">
+              <input type="url" value={form.ghl_webhook_url} onChange={(e) => update('ghl_webhook_url', e.target.value)} placeholder="https://…" className={inputCls} />
+            </Field>
+          </div>
+        </Section>
+
+        {/* Pipeline Settings */}
+        <Section title="Pipeline Settings">
+          <div className="space-y-4">
+            <Toggle
+              label="Skip website build"
+              description="Skip design, deploy, and suburb agents — use when client already has a website"
+              checked={form.skip_website}
+              onChange={(v) => update('skip_website', v)}
+            />
+            <Toggle
+              label="Auto-respond to reviews"
+              description="Automatically post AI-drafted responses to new reviews"
+              checked={form.auto_respond_reviews}
+              onChange={(v) => update('auto_respond_reviews', v)}
+            />
           </div>
         </Section>
 
@@ -266,8 +327,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, required, className, children }: {
-  label: string; required?: boolean; className?: string; children: React.ReactNode;
+function Field({ label, required, hint, className, children }: {
+  label: string; required?: boolean; hint?: string; className?: string; children: React.ReactNode;
 }) {
   return (
     <div className={className}>
@@ -275,6 +336,27 @@ function Field({ label, required, className, children }: {
         {label}{required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {children}
+      {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+function Toggle({ label, description, checked, onChange }: {
+  label: string; description: string; checked: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-800">{label}</p>
+        <p className="text-xs text-gray-500">{description}</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? 'bg-[#1B2B6B]' : 'bg-gray-200'}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+      </button>
     </div>
   );
 }
