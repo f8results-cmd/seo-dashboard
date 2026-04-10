@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { format, parseISO } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import type { Client, Job, Score, GbpPost, ReviewResponse, RankTracking } from '@/lib/types';
+import type { Client, Job, Score, GbpPost, ReviewResponse, RankTracking, HeatmapResult } from '@/lib/types';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -68,6 +68,7 @@ interface Props {
   reviews: ReviewResponse[];
   rankings: RankTracking[];
   latestJobPerAgent: Record<string, Job>;
+  heatmapResult: HeatmapResult | null;
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -81,6 +82,7 @@ export default function ClientDetailTabs({
   reviews,
   rankings,
   latestJobPerAgent,
+  heatmapResult,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('gbp');
 
@@ -108,7 +110,7 @@ export default function ClientDetailTabs({
         {/* Tab content */}
         {activeTab === 'gbp' && <GBPTab client={client} gbpPosts={gbpPosts} reviews={reviews} />}
         {activeTab === 'website' && <WebsiteTab client={client} />}
-        {activeTab === 'rankings' && <RankingsTab rankings={rankings} />}
+        {activeTab === 'rankings' && <RankingsTab rankings={rankings} heatmapResult={heatmapResult} />}
         {activeTab === 'citations' && <CitationsTab client={client} />}
         {activeTab === 'pipeline' && (
           <PipelineTab
@@ -515,7 +517,7 @@ function WebsiteTab({ client }: { client: Client }) {
 
 // ─── Tab 3: Rankings ─────────────────────────────────────────────────────────
 
-function RankingsTab({ rankings }: { rankings: RankTracking[] }) {
+function RankingsTab({ rankings, heatmapResult }: { rankings: RankTracking[]; heatmapResult: HeatmapResult | null }) {
   // Group by keyword, get current + previous
   const byKeyword: Record<string, RankTracking[]> = {};
   for (const r of rankings) {
@@ -529,78 +531,163 @@ function RankingsTab({ rankings }: { rankings: RankTracking[] }) {
     previous: entries[1] ?? null,
   }));
 
-  if (rows.length === 0) {
-    return (
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
-        <p className="text-sm font-medium text-gray-500">No ranking data yet</p>
-        <p className="text-xs text-gray-400 mt-1">Rankings will appear after the first Monday rank check</p>
-      </div>
-    );
-  }
-
-  const avgPosition = rows.reduce((sum, r) => sum + (r.current.position ?? 0), 0) / rows.length;
+  const avgPosition = rows.length > 0
+    ? rows.reduce((sum, r) => sum + (r.current.position ?? 0), 0) / rows.length
+    : 0;
   const localPackCount = rows.filter(r => r.current.local_pack).length;
 
   return (
     <div className="space-y-4">
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Keywords Tracked" value={rows.length.toString()} />
+        <StatCard label="Keywords Tracked" value={rows.length > 0 ? rows.length.toString() : '—'} />
         <StatCard label="Avg Position" value={avgPosition > 0 ? avgPosition.toFixed(1) : '—'} />
-        <StatCard label="In Local Pack" value={`${localPackCount} / ${rows.length}`} />
+        <StatCard label="In Local Pack" value={rows.length > 0 ? `${localPackCount} / ${rows.length}` : '—'} />
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="text-left px-5 py-3 font-medium text-gray-500">Keyword</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-500">Position</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-500">Change</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-500">Local Pack</th>
-              <th className="text-right px-5 py-3 font-medium text-gray-500">Checked</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {rows.map(({ keyword, current, previous }) => {
-              const pos = current.position;
-              const prevPos = previous?.position ?? null;
-              const delta = pos != null && prevPos != null ? prevPos - pos : null;
-              return (
-                <tr key={keyword} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3 font-medium text-gray-800">{keyword}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={`font-bold text-base ${pos == null ? 'text-gray-400' : pos <= 3 ? 'text-green-600' : pos <= 10 ? 'text-yellow-600' : 'text-gray-600'}`}>
-                      {pos ?? '—'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {delta == null ? (
-                      <span className="text-gray-400">→</span>
-                    ) : delta > 0 ? (
-                      <span className="text-green-600 font-medium">▲ {delta}</span>
-                    ) : delta < 0 ? (
-                      <span className="text-red-500 font-medium">▼ {Math.abs(delta)}</span>
-                    ) : (
-                      <span className="text-gray-400">→</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {current.local_pack ? (
-                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">Yes</span>
-                    ) : (
-                      <span className="text-xs text-gray-400">No</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 text-right text-xs text-gray-400">
-                    {format(parseISO(current.checked_at), 'dd MMM')}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {rows.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
+          <p className="text-sm font-medium text-gray-500">No ranking data yet</p>
+          <p className="text-xs text-gray-400 mt-1">Rankings will appear after the first Monday rank check</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="text-left px-5 py-3 font-medium text-gray-500">Keyword</th>
+                <th className="text-center px-4 py-3 font-medium text-gray-500">Position</th>
+                <th className="text-center px-4 py-3 font-medium text-gray-500">Change</th>
+                <th className="text-center px-4 py-3 font-medium text-gray-500">Local Pack</th>
+                <th className="text-right px-5 py-3 font-medium text-gray-500">Checked</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {rows.map(({ keyword, current, previous }) => {
+                const pos = current.position;
+                const prevPos = previous?.position ?? null;
+                const delta = pos != null && prevPos != null ? prevPos - pos : null;
+                return (
+                  <tr key={keyword} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-5 py-3 font-medium text-gray-800">{keyword}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`font-bold text-base ${pos == null ? 'text-gray-400' : pos <= 3 ? 'text-green-600' : pos <= 10 ? 'text-yellow-600' : 'text-gray-600'}`}>
+                        {pos ?? '—'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {delta == null ? (
+                        <span className="text-gray-400">→</span>
+                      ) : delta > 0 ? (
+                        <span className="text-green-600 font-medium">▲ {delta}</span>
+                      ) : delta < 0 ? (
+                        <span className="text-red-500 font-medium">▼ {Math.abs(delta)}</span>
+                      ) : (
+                        <span className="text-gray-400">→</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {current.local_pack ? (
+                        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">Yes</span>
+                      ) : (
+                        <span className="text-xs text-gray-400">No</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-right text-xs text-gray-400">
+                      {format(parseISO(current.checked_at), 'dd MMM')}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Heatmap Grid */}
+      {heatmapResult ? (
+        <HeatmapGrid heatmap={heatmapResult} />
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
+          <p className="text-sm font-medium text-gray-500">No heatmap data yet</p>
+          <p className="text-xs text-gray-400 mt-1">GBP heatmap will appear after the 1st of next month</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Heatmap Grid ─────────────────────────────────────────────────────────────
+
+function rankColor(rank: number): string {
+  if (rank <= 3)  return 'bg-green-500 text-white';
+  if (rank <= 7)  return 'bg-green-300 text-green-900';
+  if (rank <= 10) return 'bg-yellow-300 text-yellow-900';
+  if (rank <= 15) return 'bg-orange-300 text-orange-900';
+  if (rank < 20)  return 'bg-red-300 text-red-900';
+  return 'bg-gray-200 text-gray-500';
+}
+
+function HeatmapGrid({ heatmap }: { heatmap: HeatmapResult }) {
+  const size = heatmap.grid_size;
+  const points = [...heatmap.grid_data].sort((a, b) => a.index - b.index);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-gray-900">GBP Heatmap — &ldquo;{heatmap.keyword}&rdquo;</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {format(parseISO(heatmap.scan_date), 'dd MMM yyyy')} &middot; {size}×{size} grid &middot; {heatmap.grid_distance_m}m spacing
+          </p>
+        </div>
+        <div className="flex gap-4 text-right">
+          <div>
+            <div className="text-xl font-bold text-gray-900">{heatmap.average_rank.toFixed(1)}</div>
+            <div className="text-xs text-gray-400">Avg Rank</div>
+          </div>
+          <div>
+            <div className="text-xl font-bold text-gray-900">#{heatmap.top_rank}</div>
+            <div className="text-xs text-gray-400">Best Rank</div>
+          </div>
+          <div>
+            <div className="text-xl font-bold text-gray-900">{heatmap.coverage_percentage.toFixed(0)}%</div>
+            <div className="text-xs text-gray-400">In Top 20</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div
+        className="inline-grid gap-1 mx-auto"
+        style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}
+      >
+        {points.map((pt) => (
+          <div
+            key={pt.index}
+            title={`Rank ${pt.rank === 20 ? '20+' : pt.rank}`}
+            className={`w-8 h-8 rounded flex items-center justify-center text-xs font-bold ${rankColor(pt.rank)}`}
+          >
+            {pt.rank === 20 ? '20+' : pt.rank}
+          </div>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div className="flex gap-3 mt-4 flex-wrap">
+        {[
+          { label: '1–3', cls: 'bg-green-500' },
+          { label: '4–7', cls: 'bg-green-300' },
+          { label: '8–10', cls: 'bg-yellow-300' },
+          { label: '11–15', cls: 'bg-orange-300' },
+          { label: '16–19', cls: 'bg-red-300' },
+          { label: '20+', cls: 'bg-gray-200' },
+        ].map(({ label, cls }) => (
+          <div key={label} className="flex items-center gap-1.5">
+            <div className={`w-3 h-3 rounded ${cls}`} />
+            <span className="text-xs text-gray-500">{label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -609,9 +696,19 @@ function RankingsTab({ rankings }: { rankings: RankTracking[] }) {
 // ─── Tab 4: Citations ─────────────────────────────────────────────────────────
 
 function CitationsTab({ client }: { client: Client }) {
-  const router = useRouter();
   const websiteData = client.website_data as Record<string, unknown> | null;
-  const citations = (websiteData?.citations ?? {}) as Record<string, { status: string; url?: string }>;
+
+  // LeadSnap data (stored by citation_agent)
+  const leadsnapLocationId = websiteData?.leadsnap_location_id as number | null | undefined;
+  const citationSummary = websiteData?.citation_summary as {
+    total_submitted: number;
+    total_synced: number;
+    total_pending: number;
+    total_action_required: number;
+    total_linked: number;
+    directories: Array<{ name: string; status: string; url: string }>;
+    raw_stats: Record<string, number>;
+  } | null | undefined;
 
   const nap = [
     { label: 'Business Name', value: client.business_name },
@@ -623,26 +720,64 @@ function CitationsTab({ client }: { client: Client }) {
 
   const napText = nap.map(f => `${f.label}: ${f.value}`).join('\n');
 
-  async function markCitation(dirName: string, status: string, url?: string) {
-    const updated = { ...citations, [dirName]: { status, url } };
-    await fetch(`/api/clients/${client.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ website_data: { ...websiteData, citations: updated } }),
-    });
-    router.refresh();
-  }
-
-  const submitted = AU_DIRECTORIES.filter(d => citations[d.name]?.status === 'submitted').length;
-  const citationScore = Math.round((submitted / AU_DIRECTORIES.length) * 100);
+  const totalSubmitted = (citationSummary?.total_submitted ?? 0) + (citationSummary?.total_synced ?? 0);
+  const totalManual = 9; // MANUAL_DIRECTORIES count
+  const totalCovered = totalSubmitted + totalManual;
 
   return (
     <div className="space-y-4">
-      {/* Summary */}
+      {/* LeadSnap Status Banner */}
+      {leadsnapLocationId ? (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-[#1B2B6B] flex items-center justify-center flex-shrink-0">
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">LeadSnap Citation Building Active</p>
+              <p className="text-xs text-gray-400">Location ID: {leadsnapLocationId} · Auto-submitted via LeadSnap</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-4 gap-3">
+            <StatCard label="Submitted" value={citationSummary?.total_submitted?.toString() ?? '0'} />
+            <StatCard label="Synced" value={citationSummary?.total_synced?.toString() ?? '0'} />
+            <StatCard label="Pending" value={citationSummary?.total_pending?.toString() ?? '0'} />
+            <StatCard label="Action Required" value={citationSummary?.total_action_required?.toString() ?? '0'} />
+          </div>
+          {citationSummary?.directories && citationSummary.directories.length > 0 && (
+            <div className="mt-4 border-t border-gray-50 pt-4">
+              <p className="text-xs font-medium text-gray-500 mb-2">Directories</p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {citationSummary.directories.map((d, i) => (
+                  <div key={i} className="flex items-center gap-3 text-xs">
+                    <CitationStatusBadge status={d.status} />
+                    <span className="text-gray-700">{d.name || '—'}</span>
+                    {d.url && (
+                      <a href={d.url} target="_blank" rel="noopener noreferrer"
+                        className="text-[#1B2B6B] hover:underline flex items-center gap-1 ml-auto">
+                        View <ExternalLinkIcon />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm text-amber-800">
+          <strong>LeadSnap not linked.</strong> Run the citation agent to connect this client to LeadSnap citation building.
+          Ensure the client has a <code className="text-xs bg-amber-100 px-1 py-0.5 rounded">google_place_id</code> set.
+        </div>
+      )}
+
+      {/* Summary stats */}
       <div className="grid grid-cols-3 gap-4">
-        <StatCard label="Submitted" value={`${submitted} / ${AU_DIRECTORIES.length}`} />
-        <StatCard label="Citation Score" value={`${citationScore}%`} />
-        <StatCard label="Remaining" value={(AU_DIRECTORIES.length - submitted).toString()} />
+        <StatCard label="LeadSnap Submitted" value={totalSubmitted.toString()} />
+        <StatCard label="Manual Guide" value={totalManual.toString()} />
+        <StatCard label="Total Covered" value={totalCovered.toString()} />
       </div>
 
       {/* NAP Details */}
@@ -662,80 +797,47 @@ function CitationsTab({ client }: { client: Client }) {
         </div>
       </div>
 
-      {/* Directories list */}
+      {/* Manual submission directories */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+          <h3 className="text-sm font-medium text-gray-700">Manual Submission Directories</h3>
+          <span className="text-xs text-gray-400">Requires account / login</span>
+        </div>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50">
+            <tr className="border-b border-gray-100">
               <th className="text-left px-5 py-3 font-medium text-gray-500">Directory</th>
-              <th className="text-left px-5 py-3 font-medium text-gray-500">Status</th>
-              <th className="text-left px-5 py-3 font-medium text-gray-500">Listing URL</th>
-              <th className="text-right px-5 py-3 font-medium text-gray-500">Actions</th>
+              <th className="text-left px-5 py-3 font-medium text-gray-500">Notes</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {AU_DIRECTORIES.map((dir) => {
-              const citation = citations[dir.name];
-              const status = citation?.status ?? 'not_submitted';
-              return (
-                <tr key={dir.name} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2">
-                      <a href={dir.url} target="_blank" rel="noopener noreferrer"
-                        className="font-medium text-gray-800 hover:text-[#1B2B6B] transition-colors">
-                        {dir.name}
-                      </a>
-                      {dir.priority === 'essential' && (
-                        <span className="text-xs px-1.5 py-0.5 bg-red-100 text-red-600 rounded font-medium">Essential</span>
-                      )}
-                      {dir.priority === 'high' && (
-                        <span className="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded font-medium">High</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <CitationStatusBadge status={status} />
-                  </td>
-                  <td className="px-5 py-3">
-                    {citation?.url ? (
-                      <a href={citation.url} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-[#1B2B6B] hover:underline flex items-center gap-1">
-                        View listing <ExternalLinkIcon />
-                      </a>
-                    ) : (
-                      <span className="text-xs text-gray-400">—</span>
+            {AU_DIRECTORIES.filter(d => d.priority === 'essential' || d.priority === 'high' || d.priority === 'medium').map((dir) => (
+              <tr key={dir.name} className="hover:bg-gray-50 transition-colors">
+                <td className="px-5 py-3">
+                  <div className="flex items-center gap-2">
+                    <a href={dir.url} target="_blank" rel="noopener noreferrer"
+                      className="font-medium text-gray-800 hover:text-[#1B2B6B] transition-colors">
+                      {dir.name}
+                    </a>
+                    {dir.priority === 'essential' && (
+                      <span className="text-xs px-1.5 py-0.5 bg-red-100 text-red-600 rounded font-medium">Essential</span>
                     )}
-                  </td>
-                  <td className="px-5 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {status !== 'submitted' && (
-                        <button
-                          onClick={() => markCitation(dir.name, 'submitted')}
-                          className="text-xs px-2.5 py-1 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors font-medium"
-                        >
-                          Mark Submitted
-                        </button>
-                      )}
-                      {status !== 'pending' && status !== 'submitted' && (
-                        <button
-                          onClick={() => markCitation(dir.name, 'pending')}
-                          className="text-xs px-2.5 py-1 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors font-medium"
-                        >
-                          In Progress
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+                    {dir.priority === 'high' && (
+                      <span className="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded font-medium">High</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-5 py-3 text-xs text-gray-500">
+                  <a href={dir.url} target="_blank" rel="noopener noreferrer"
+                    className="text-[#1B2B6B] hover:underline flex items-center gap-1 w-fit">
+                    Submit listing <ExternalLinkIcon />
+                  </a>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
-
-      <p className="text-xs text-gray-400 text-center px-4">
-        Integrate Leads Snap for automated citation management and tracking.
-      </p>
     </div>
   );
 }

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import ClientDetailTabs from '@/components/agency/ClientDetailTabs';
 import EditClientModal from '@/components/agency/EditClientModal';
 import PipelinePoller from '@/components/agency/PipelinePoller';
-import type { Client, Job, Score, GbpPost, ReviewResponse, RankTracking } from '@/lib/types';
+import type { Client, Job, Score, GbpPost, ReviewResponse, RankTracking, HeatmapResult } from '@/lib/types';
 import { createClient } from '@/lib/supabase/client';
 
 const AGENT_LABELS: Record<string, string> = {
@@ -28,6 +28,7 @@ interface PageData {
   gbpPosts: GbpPost[];
   reviews: ReviewResponse[];
   rankings: RankTracking[];
+  heatmapResult: HeatmapResult | null;
 }
 
 export default function ClientDetailPage() {
@@ -49,6 +50,7 @@ export default function ClientDetailPage() {
       { data: gbpPosts },
       { data: reviews },
       { data: rankings },
+      { data: heatmapRows },
     ] = await Promise.all([
       supabase.from('clients').select('*').eq('id', id).single(),
       supabase.from('jobs').select('*').eq('client_id', id)
@@ -63,6 +65,8 @@ export default function ClientDetailPage() {
         .order('created_at', { ascending: false }),
       supabase.from('rank_tracking').select('*').eq('client_id', id)
         .order('checked_at', { ascending: false }),
+      supabase.from('heatmap_results').select('*').eq('client_id', id)
+        .order('scan_date', { ascending: false }).limit(1),
     ]);
 
     if (clientData) {
@@ -74,6 +78,7 @@ export default function ClientDetailPage() {
         gbpPosts: (gbpPosts as GbpPost[]) ?? [],
         reviews: (reviews as ReviewResponse[]) ?? [],
         rankings: (rankings as RankTracking[]) ?? [],
+        heatmapResult: (heatmapRows as HeatmapResult[] | null)?.[0] ?? null,
       });
     }
     setLoading(false);
@@ -144,7 +149,7 @@ export default function ClientDetailPage() {
     );
   }
 
-  const { client, jobs, scores, deliverables, gbpPosts, reviews, rankings } = data;
+  const { client, jobs, scores, deliverables, gbpPosts, reviews, rankings, heatmapResult } = data;
   const latestScore = scores[0];
   const healthScore = latestScore
     ? Math.round((latestScore.local_seo_score + latestScore.onsite_seo_score + latestScore.geo_score) / 3)
@@ -253,6 +258,7 @@ export default function ClientDetailPage() {
         reviews={reviews}
         rankings={rankings}
         latestJobPerAgent={latestJobPerAgent}
+        heatmapResult={heatmapResult}
       />
 
       {/* ── Edit Modal ────────────────────────────────────────────────────── */}
