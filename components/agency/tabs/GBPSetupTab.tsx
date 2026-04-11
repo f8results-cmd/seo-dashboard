@@ -65,7 +65,7 @@ export default function GBPSetupTab({ client }: { client: Client }) {
     { q: `What areas does ${client.business_name} service?`, a: `We service ${client.city} and surrounding suburbs. Contact us to confirm your area.` },
     { q: `How quickly can ${client.business_name} respond?`, a: 'We aim to respond to all enquiries within the same business day.' },
     { q: `Is ${client.business_name} licensed and insured?`, a: `Yes, ${client.business_name} is fully licensed and insured for your peace of mind.` },
-    { q: `How do I get a quote from ${client.business_name}?`, a: 'Call us, use our website contact form, or send an email — we'll respond promptly with a no-obligation quote.' },
+    { q: `How do I get a quote from ${client.business_name}?`, a: "Call us, use our website contact form, or send an email — we'll respond promptly with a no-obligation quote." },
     { q: `Does ${client.business_name} offer free quotes?`, a: 'Yes, we provide free, no-obligation quotes. Get in touch today.' },
   ];
 
