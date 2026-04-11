@@ -1,13 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Client } from '@/lib/types';
 
-const NICHES = [
-  'plumber', 'electrician', 'window cleaning', 'automotive',
-  'cleaning', 'landscaping', 'painter', 'carpenter', 'mechanic',
-  'dentist', 'physio', 'restaurant', 'retail', 'other',
+interface NicheOption {
+  key: string;
+  label: string;
+}
+
+const FALLBACK_NICHES: NicheOption[] = [
+  { key: 'ndis_provider', label: 'NDIS / Disability Support Provider' },
+  { key: 'plumber', label: 'Plumber / Gas Fitter' },
+  { key: 'electrician', label: 'Electrician' },
+  { key: 'window_cleaning', label: 'Window Cleaning' },
+  { key: 'used_car_dealer', label: 'Used Car Dealer' },
+  { key: 'lawn_and_garden', label: 'Lawn & Garden / Landscaping' },
+  { key: 'cleaning', label: 'Cleaning Service' },
+  { key: 'accountant', label: 'Accountant / Bookkeeper' },
+  { key: 'real_estate', label: 'Real Estate Agent' },
+  { key: 'mortgage_broker', label: 'Mortgage Broker' },
 ];
 
 interface EditClientModalProps {
@@ -19,6 +31,26 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [niches, setNiches] = useState<NicheOption[]>(FALLBACK_NICHES);
+  const [nicheOpen, setNicheOpen] = useState(false);
+  const nicheRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch('/api/niche-keys')
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d.niches)) setNiches(d.niches); })
+      .catch(() => { /* keep fallback */ });
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (nicheRef.current && !nicheRef.current.contains(e.target as Node)) {
+        setNicheOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const [form, setForm] = useState({
     business_name: client.business_name ?? '',
@@ -133,12 +165,37 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
                 <input className={input} value={form.owner_name} onChange={(e) => set('owner_name', e.target.value)} />
               </Field>
               <Field label="Niche">
-                <select className={input} value={form.niche} onChange={(e) => set('niche', e.target.value)}>
-                  <option value="">Select niche…</option>
-                  {NICHES.map((n) => (
-                    <option key={n} value={n}>{n.charAt(0).toUpperCase() + n.slice(1)}</option>
-                  ))}
-                </select>
+                <div ref={nicheRef} className="relative">
+                  <input
+                    className={input}
+                    value={form.niche}
+                    onChange={(e) => set('niche', e.target.value)}
+                    onFocus={() => setNicheOpen(true)}
+                    placeholder="e.g. ndis_provider"
+                    autoComplete="off"
+                  />
+                  {nicheOpen && (
+                    <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+                      {niches.map((n) => (
+                        <button
+                          key={n.key}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault(); // keep focus on input so onBlur doesn't fire first
+                            set('niche', n.key);
+                            setNicheOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm transition-colors hover:bg-gray-50 ${
+                            form.niche === n.key ? 'bg-navy-50 text-navy-700 font-medium' : 'text-gray-700'
+                          }`}
+                        >
+                          <span className="font-mono text-xs text-gray-400 mr-2">{n.key}</span>
+                          {n.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Field>
             </div>
             <Field label="Tagline">
