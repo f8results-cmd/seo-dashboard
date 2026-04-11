@@ -144,15 +144,12 @@ export interface GbpPost {
 export interface HeatmapResult {
   id: string;
   client_id: string;
-  leadsnap_heatmap_id: number | null;
   scan_date: string;
   keyword: string;
-  grid_data: Array<{ index: number; lat: string; lng: string; rank: number }>;
+  grid_data: { screenshot_url: string; notes?: string; scan_type?: string };
   average_rank: number;
   top_rank: number;
   coverage_percentage: number;
-  grid_size: number;
-  grid_distance_m: number;
 }
 
 export interface MonthlyReport {

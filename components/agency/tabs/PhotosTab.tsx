@@ -32,9 +32,9 @@ export default function PhotosTab({ client, onUpdate }: { client: Client; onUpda
     for (const file of Array.from(files)) {
       const ext = file.name.split('.').pop();
       const path = `client-photos/${client.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from('client-assets').upload(path, file, { upsert: false });
+      const { error } = await supabase.storage.from('client-photos').upload(path, file, { upsert: false });
       if (error) { setMsg(`Failed to upload ${file.name}: ${error.message}`); continue; }
-      const { data: { publicUrl } } = supabase.storage.from('client-assets').getPublicUrl(path);
+      const { data: { publicUrl } } = supabase.storage.from('client-photos').getPublicUrl(path);
       newPhotos.push({ url: publicUrl, label: label || undefined, uploaded_at: new Date().toISOString() });
     }
 

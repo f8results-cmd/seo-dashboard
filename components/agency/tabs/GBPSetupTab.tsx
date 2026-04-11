@@ -58,17 +58,6 @@ export default function GBPSetupTab({ client }: { client: Client }) {
     servicesByCategory[cat].push(svc);
   }
 
-  const reviewLink = client.gbp_url ?? '';
-  const reviewTemplate = `Hi [Name], thanks for choosing ${client.business_name}. If you have a moment, a Google review would mean a lot to us. Here's the link: ${reviewLink}`;
-
-  const qas = [
-    { q: `What areas does ${client.business_name} service?`, a: `We service ${client.city} and surrounding suburbs. Contact us to confirm your area.` },
-    { q: `How quickly can ${client.business_name} respond?`, a: 'We aim to respond to all enquiries within the same business day.' },
-    { q: `Is ${client.business_name} licensed and insured?`, a: `Yes, ${client.business_name} is fully licensed and insured for your peace of mind.` },
-    { q: `How do I get a quote from ${client.business_name}?`, a: "Call us, use our website contact form, or send an email — we'll respond promptly with a no-obligation quote." },
-    { q: `Does ${client.business_name} offer free quotes?`, a: 'Yes, we provide free, no-obligation quotes. Get in touch today.' },
-  ];
-
   const photoChecklist = [
     { label: 'Logo (250×250px min)', done: !!client.photos?.logo },
     { label: 'Cover photo (1080×608px)', done: !!client.photos?.cover },
@@ -158,14 +147,8 @@ export default function GBPSetupTab({ client }: { client: Client }) {
         </div>
       </Section>
 
-      {/* 6 — Review SMS Template */}
-      <Section title="6. Review SMS Template">
-        <div className="bg-gray-50 border border-gray-200 rounded p-3 text-sm text-gray-700">{reviewTemplate}</div>
-        <CopyBtn text={reviewTemplate} />
-      </Section>
-
-      {/* 7 — GHL Connection Steps */}
-      <Section title="7. GHL Connection Steps">
+      {/* 6 — GHL Connection Steps */}
+      <Section title="6. GHL Connection Steps">
         <ol className="space-y-2 text-sm text-gray-700 list-decimal list-inside">
           <li>Log into your GHL sub-account</li>
           <li>Go to <strong>Reputation → Google Business Profile</strong></li>
@@ -178,24 +161,8 @@ export default function GBPSetupTab({ client }: { client: Client }) {
         </div>
       </Section>
 
-      {/* 8 — Q&A */}
-      <Section title="8. Q&A Section">
-        <p className="text-xs text-gray-500 mb-3">Go to GBP → Q&amp;A → Ask as yourself → then answer it.</p>
-        <div className="space-y-3">
-          {qas.map((qa, i) => (
-            <div key={i} className="bg-gray-50 border border-gray-200 rounded p-3">
-              <p className="text-sm font-medium text-gray-800 mb-1">Q: {qa.q}</p>
-              <p className="text-sm text-gray-600">A: {qa.a}</p>
-              <div className="mt-2">
-                <CopyBtn text={`Q: ${qa.q}\nA: ${qa.a}`} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* 9 — Weekly Photo Reminder */}
-      <Section title="9. Weekly Photo Reminder">
+      {/* 7 — Weekly Photo Reminder */}
+      <Section title="7. Weekly Photo Reminder">
         <div className="bg-blue-50 border border-blue-200 rounded p-4 text-sm text-blue-800 space-y-2">
           <p className="font-medium">Geotagging instructions for new photos:</p>
           <p><strong>iPhone:</strong> Location Services must be ON for Camera app. Go to Settings → Privacy → Location Services → Camera → While Using.</p>
@@ -204,8 +171,8 @@ export default function GBPSetupTab({ client }: { client: Client }) {
         </div>
       </Section>
 
-      {/* 10 — What Figure 8 Handles */}
-      <Section title="10. What Figure 8 Handles">
+      {/* 8 — What Figure 8 Handles */}
+      <Section title="8. What Figure 8 Handles">
         <ul className="space-y-2 text-sm text-gray-700">
           {[
             'Weekly GBP post published every Wednesday automatically',
