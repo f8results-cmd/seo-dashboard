@@ -12,9 +12,18 @@ export interface ClientPhotos {
   extra1:   string | null;
   extra2:   string | null;
 }
+
+export interface OnboardingChecklist {
+  ghl_created:       boolean;
+  gbp_connected:     boolean;
+  wp_activated:      boolean;
+  first_update_sent: boolean;
+}
+
 export type JobStatus = 'pending' | 'running' | 'complete' | 'error';
 export type PostStatus = 'scheduled' | 'posted' | 'failed';
 export type ReviewStatus = 'pending' | 'approved' | 'posted';
+export type TaskPriority = 'high' | 'medium' | 'low';
 
 export interface Client {
   id: string;
@@ -55,6 +64,10 @@ export interface Client {
   gbp_location_name: string | null;
   photos: ClientPhotos | null;
   created_at: string;
+  // New columns
+  onboarding_checklist: OnboardingChecklist | null;
+  last_friday_update: string | null;
+  health_score: number;
 }
 
 export interface Job {
@@ -67,7 +80,7 @@ export interface Job {
   completed_at: string | null;
 }
 
-// Score field names match the Python supabase_client.py write_scores()
+// Score field names match Python supabase_client.py write_scores()
 export interface Score {
   id: string;
   client_id: string;
@@ -77,7 +90,7 @@ export interface Score {
   recorded_at: string;
 }
 
-// Deliverable field names match Python: label + status (not key + content)
+// Deliverable field names match Python: label + status
 export interface Deliverable {
   id: string;
   client_id: string;
@@ -95,7 +108,7 @@ export interface ScheduledJob {
   completed_at: string | null;
 }
 
-// ReviewResponse field names match Python: draft_response + status (not response_draft + posted)
+// ReviewResponse field names match Python: draft_response + status
 export interface ReviewResponse {
   id: string;
   client_id: string;
@@ -107,7 +120,7 @@ export interface ReviewResponse {
   created_at: string;
 }
 
-// RankTracking matches Python rank_tracking table (not keyword_rankings)
+// RankTracking matches Python rank_tracking table
 export interface RankTracking {
   id: string;
   client_id: string;
@@ -151,19 +164,61 @@ export interface MonthlyReport {
   created_at: string;
 }
 
+// New tables
+export interface ClientTask {
+  id: string;
+  client_id: string;
+  description: string;
+  due_date: string | null;
+  priority: TaskPriority;
+  completed: boolean;
+  created_at: string;
+  // joined field
+  client_name?: string;
+}
+
+export interface ClientNote {
+  id: string;
+  client_id: string;
+  note: string;
+  created_at: string;
+}
+
+export interface FridayUpdate {
+  id: string;
+  client_id: string;
+  content: string;
+  sent_at: string;
+  delivery_method: string;
+}
+
+// Computed reminder (not a DB table — generated from client data)
+export interface Reminder {
+  id: string;
+  client_id: string;
+  client_name: string;
+  description: string;
+  due_date: string;
+  type: 'friday_update' | 'rank_screenshot' | 'photo_reminder' | 'onboarding';
+  overdue: boolean;
+}
+
 // Supabase Database type
 export type Database = {
   public: {
     Tables: {
-      clients: { Row: Client; Insert: Partial<Client>; Update: Partial<Client> };
-      jobs: { Row: Job; Insert: Partial<Job>; Update: Partial<Job> };
-      scores: { Row: Score; Insert: Partial<Score>; Update: Partial<Score> };
-      deliverables: { Row: Deliverable; Insert: Partial<Deliverable>; Update: Partial<Deliverable> };
-      scheduled_jobs: { Row: ScheduledJob; Insert: Partial<ScheduledJob>; Update: Partial<ScheduledJob> };
-      review_responses: { Row: ReviewResponse; Insert: Partial<ReviewResponse>; Update: Partial<ReviewResponse> };
-      rank_tracking: { Row: RankTracking; Insert: Partial<RankTracking>; Update: Partial<RankTracking> };
-      gbp_posts: { Row: GbpPost; Insert: Partial<GbpPost>; Update: Partial<GbpPost> };
+      clients:         { Row: Client;         Insert: Partial<Client>;         Update: Partial<Client> };
+      jobs:            { Row: Job;            Insert: Partial<Job>;            Update: Partial<Job> };
+      scores:          { Row: Score;          Insert: Partial<Score>;          Update: Partial<Score> };
+      deliverables:    { Row: Deliverable;    Insert: Partial<Deliverable>;    Update: Partial<Deliverable> };
+      scheduled_jobs:  { Row: ScheduledJob;  Insert: Partial<ScheduledJob>;  Update: Partial<ScheduledJob> };
+      review_responses:{ Row: ReviewResponse;Insert: Partial<ReviewResponse>;Update: Partial<ReviewResponse> };
+      rank_tracking:   { Row: RankTracking;  Insert: Partial<RankTracking>;  Update: Partial<RankTracking> };
+      gbp_posts:       { Row: GbpPost;       Insert: Partial<GbpPost>;       Update: Partial<GbpPost> };
       monthly_reports: { Row: MonthlyReport; Insert: Partial<MonthlyReport>; Update: Partial<MonthlyReport> };
+      client_tasks:    { Row: ClientTask;    Insert: Partial<ClientTask>;    Update: Partial<ClientTask> };
+      client_notes:    { Row: ClientNote;    Insert: Partial<ClientNote>;    Update: Partial<ClientNote> };
+      friday_updates:  { Row: FridayUpdate;  Insert: Partial<FridayUpdate>;  Update: Partial<FridayUpdate> };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
