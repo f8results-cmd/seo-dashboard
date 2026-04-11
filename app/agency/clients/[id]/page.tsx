@@ -24,7 +24,7 @@ interface PageData {
   client: Client;
   jobs: Job[];
   scores: Score[];
-  deliverables: { label: string }[];
+  deliverables: { label: string; status: string | null }[];
   gbpPosts: GbpPost[];
   reviews: ReviewResponse[];
   rankings: RankTracking[];
@@ -62,7 +62,7 @@ export default function ClientDetailPage() {
         .order('started_at', { ascending: false }),
       supabase.from('scores').select('*').eq('client_id', id)
         .order('recorded_at', { ascending: false }).limit(12),
-      supabase.from('deliverables').select('label').eq('client_id', id),
+      supabase.from('deliverables').select('label, status').eq('client_id', id),
       supabase.from('gbp_posts').select('*').eq('client_id', id)
         .order('scheduled_date', { ascending: false }).limit(30),
       supabase.from('review_responses').select('*').eq('client_id', id)
@@ -82,7 +82,7 @@ export default function ClientDetailPage() {
         client: clientData as Client,
         jobs: (jobs as Job[]) ?? [],
         scores: (scores as Score[]) ?? [],
-        deliverables: (deliverables as { label: string }[]) ?? [],
+        deliverables: (deliverables as { label: string; status: string | null }[]) ?? [],
         gbpPosts: (gbpPosts as GbpPost[]) ?? [],
         reviews: (reviews as ReviewResponse[]) ?? [],
         rankings: (rankings as RankTracking[]) ?? [],
@@ -175,8 +175,6 @@ export default function ClientDetailPage() {
     }
   }
 
-  const deliverableKeys = deliverables.map((d) => d.label);
-
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
       {/* ── Header ───────────────────────────────────────────────────────── */}
@@ -263,7 +261,7 @@ export default function ClientDetailPage() {
         client={client}
         jobs={jobs}
         scores={scores}
-        deliverableKeys={deliverableKeys}
+        deliverables={deliverables}
         gbpPosts={gbpPosts}
         reviews={reviews}
         rankings={rankings}

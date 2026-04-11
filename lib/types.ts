@@ -1,4 +1,17 @@
 export type ClientStatus = 'pending' | 'active' | 'complete' | 'inactive' | 'running' | 'error' | 'failed';
+
+export interface ClientPhotos {
+  logo:     string | null;
+  cover:    string | null;
+  exterior: string | null;
+  owner:    string | null;
+  work1:    string | null;
+  work2:    string | null;
+  before:   string | null;
+  after:    string | null;
+  extra1:   string | null;
+  extra2:   string | null;
+}
 export type JobStatus = 'pending' | 'running' | 'complete' | 'error';
 export type PostStatus = 'scheduled' | 'posted' | 'failed';
 export type ReviewStatus = 'pending' | 'approved' | 'posted';
@@ -40,6 +53,7 @@ export interface Client {
   review_rating: number | null;
   auto_respond_reviews: boolean;
   gbp_location_name: string | null;
+  photos: ClientPhotos | null;
   created_at: string;
 }
 

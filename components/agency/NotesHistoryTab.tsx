@@ -297,6 +297,23 @@ function ActivityTimelineSection({
 
 // ─── Timeline Row ─────────────────────────────────────────────────────────────
 
+function rowAccent(type: ItemType, status: string): string {
+  if (type !== 'job' && type !== 'scheduled_job') return '';
+  if (status === 'complete') return 'border-l-2 border-l-green-400';
+  if (status === 'error' || status === 'failed') return 'border-l-2 border-l-red-400';
+  if (status === 'running') return 'border-l-2 border-l-blue-400';
+  return 'border-l-2 border-l-yellow-300';
+}
+
+function jobDuration(detail: unknown): string | null {
+  const job = detail as { started_at?: string | null; completed_at?: string | null };
+  if (!job?.started_at || !job?.completed_at) return null;
+  const secs = Math.round(
+    (new Date(job.completed_at).getTime() - new Date(job.started_at).getTime()) / 1000
+  );
+  return secs >= 60 ? `${Math.floor(secs / 60)}m ${secs % 60}s` : `${secs}s`;
+}
+
 function TimelineRow({
   item,
   expanded,
@@ -307,6 +324,8 @@ function TimelineRow({
   onToggle: () => void;
 }) {
   const hasDetail = !!item.detail;
+  const accent    = rowAccent(item.type, item.status);
+  const duration  = item.type === 'job' ? jobDuration(item.detail) : null;
 
   return (
     <div className="relative pl-11">
@@ -316,7 +335,7 @@ function TimelineRow({
       </div>
 
       <div
-        className={`rounded-lg px-4 py-3 transition-colors ${
+        className={`rounded-lg px-4 py-3 transition-colors ${accent} ${
           hasDetail ? 'cursor-pointer hover:bg-gray-50' : ''
         }`}
         onClick={hasDetail ? onToggle : undefined}
@@ -326,6 +345,9 @@ function TimelineRow({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium text-gray-800">{item.title}</span>
               <StatusBadge type={item.type} status={item.status} />
+              {duration && (
+                <span className="text-xs text-gray-400">{duration}</span>
+              )}
             </div>
             <p className="text-xs text-gray-400 mt-0.5">
               {item.date ? format(parseISO(item.date), 'dd MMM yyyy, HH:mm') : '—'}

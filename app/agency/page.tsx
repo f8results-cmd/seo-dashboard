@@ -1,59 +1,119 @@
-import { createClient } from '@/lib/supabase/server';
+'use client';
+
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { format } from 'date-fns';
-import type { Client, Job } from '@/lib/types';
+import { format, parseISO } from 'date-fns';
+import { createClient } from '@/lib/supabase/client';
+import type { Client, ClientStatus } from '@/lib/types';
 
-export const dynamic = 'force-dynamic';
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-export default async function AgencyOverviewPage() {
-  const supabase = createClient();
+type FilterStatus = 'all' | 'active' | 'pending' | 'error';
 
-  const [
-    { data: clients },
-    { data: recentJobs },
-    { data: scheduledJobs },
-  ] = await Promise.all([
-    supabase.from('clients').select('*').order('created_at', { ascending: false }),
-    supabase
-      .from('jobs')
-      .select('*, clients(business_name)')
-      .order('started_at', { ascending: false })
-      .limit(10),
-    supabase
-      .from('scheduled_jobs')
-      .select('*, clients(business_name)')
-      .gte('run_at', new Date().toISOString())
-      .order('run_at', { ascending: true })
-      .limit(5),
-  ]);
+interface LastRun {
+  date: string;
+  status: string;
+}
 
-  const allClients = (clients as Client[]) ?? [];
-  const activeClients = allClients.filter((c) => c.status === 'active');
-  const needsAction = allClients.filter(
-    (c) => !c.gbp_location_name || c.status === 'pending'
-  );
-  const liveWebsites = allClients.filter((c) => !!c.live_url);
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
-  const completedJobs = (recentJobs ?? []).filter((j: Job) => j.status === 'complete');
-  const failedJobs = (recentJobs ?? []).filter((j: Job) => j.status === 'error');
+export default function AgencyOverviewPage() {
+  const [clients,    setClients]    = useState<Client[]>([]);
+  const [lastRunMap, setLastRunMap] = useState<Record<string, LastRun>>({});
+  const [filter,     setFilter]     = useState<FilterStatus>('all');
+  const [loading,    setLoading]    = useState(true);
+  const [runningIds, setRunningIds] = useState<Set<string>>(new Set());
+  const [runMsg,     setRunMsg]     = useState<Record<string, string>>({});
 
-  const statCards = [
-    { label: 'Active Clients', value: activeClients.length, color: 'bg-navy-500', textColor: 'text-white' },
-    { label: 'Needs Action', value: needsAction.length, color: 'bg-orange-DEFAULT', textColor: 'text-white' },
-    { label: 'Websites Live', value: liveWebsites.length, color: 'bg-green-500', textColor: 'text-white' },
-    { label: 'Total Clients', value: allClients.length, color: 'bg-gray-700', textColor: 'text-white' },
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  async function fetchData() {
+    const supabase = createClient();
+    const [{ data: clientRows }, { data: jobRows }] = await Promise.all([
+      supabase.from('clients').select('*').order('created_at', { ascending: false }),
+      supabase
+        .from('jobs')
+        .select('client_id, started_at, status')
+        .not('agent_name', 'eq', '_pipeline_failure')
+        .order('started_at', { ascending: false })
+        .limit(2000),
+    ]);
+
+    setClients((clientRows as Client[]) ?? []);
+
+    // Build last-run lookup (first occurrence per client = most recent)
+    const map: Record<string, LastRun> = {};
+    for (const job of jobRows ?? []) {
+      if (!map[job.client_id] && job.started_at) {
+        map[job.client_id] = { date: job.started_at, status: job.status };
+      }
+    }
+    setLastRunMap(map);
+    setLoading(false);
+  }
+
+  async function triggerPipeline(clientId: string) {
+    setRunningIds((s) => new Set(s).add(clientId));
+    setRunMsg((m) => ({ ...m, [clientId]: '' }));
+    const url = process.env.NEXT_PUBLIC_RAILWAY_URL;
+    if (!url) {
+      setRunMsg((m) => ({ ...m, [clientId]: 'RAILWAY_URL not set' }));
+      setRunningIds((s) => { const n = new Set(s); n.delete(clientId); return n; });
+      return;
+    }
+    try {
+      const res = await fetch(`${url}/run`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ client_id: clientId }),
+      });
+      setRunMsg((m) => ({ ...m, [clientId]: res.ok ? 'Triggered!' : 'Failed' }));
+      if (res.ok) setTimeout(fetchData, 2000);
+    } catch {
+      setRunMsg((m) => ({ ...m, [clientId]: 'Unreachable' }));
+    } finally {
+      setRunningIds((s) => { const n = new Set(s); n.delete(clientId); return n; });
+    }
+  }
+
+  // ── Derived stats ──────────────────────────────────────────────────────────
+  const active   = clients.filter((c) => c.status === 'active').length;
+  const pending  = clients.filter((c) => c.status === 'pending').length;
+  const errors   = clients.filter((c) => c.status === 'error' || c.status === 'failed').length;
+  const live     = clients.filter((c) => !!c.live_url).length;
+
+  // ── Filtered list ──────────────────────────────────────────────────────────
+  const displayed = clients.filter((c) => {
+    if (filter === 'all')    return true;
+    if (filter === 'active') return c.status === 'active';
+    if (filter === 'pending') return c.status === 'pending';
+    if (filter === 'error')  return c.status === 'error' || c.status === 'failed' || c.status === 'running';
+    return true;
+  });
+
+  const FILTER_TABS: { id: FilterStatus; label: string; count: number }[] = [
+    { id: 'all',     label: 'All',     count: clients.length },
+    { id: 'active',  label: 'Active',  count: active },
+    { id: 'pending', label: 'Pending', count: pending },
+    { id: 'error',   label: 'Error',   count: errors },
   ];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-6 lg:p-8 max-w-[1600px] mx-auto">
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Overview</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{format(new Date(), 'EEEE, d MMMM yyyy')}</p>
+          <h1 className="text-2xl font-bold text-gray-900">Agency Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {format(new Date(), 'EEEE, d MMMM yyyy')}
+          </p>
         </div>
         <Link
           href="/agency/clients/new"
-          className="flex items-center gap-2 px-4 py-2 bg-orange-DEFAULT text-white text-sm font-medium rounded-lg hover:bg-orange-500 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-[#E8622A] text-white text-sm font-medium rounded-lg hover:bg-orange-600 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -62,156 +122,190 @@ export default async function AgencyOverviewPage() {
         </Link>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {statCards.map(({ label, value, color, textColor }) => (
-          <div key={label} className={`${color} rounded-xl p-5 ${textColor}`}>
-            <p className="text-3xl font-bold">{value}</p>
-            <p className="text-sm opacity-80 mt-1">{label}</p>
-          </div>
+      {/* ── Stat cards ──────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Total Clients"   value={clients.length} color="bg-[#1B2B6B]" />
+        <StatCard label="Active"          value={active}         color="bg-green-600" />
+        <StatCard label="Websites Live"   value={live}           color="bg-emerald-500" />
+        <StatCard label="Errors / Running" value={errors}        color="bg-[#E8622A]" />
+      </div>
+
+      {/* ── Filter tabs ─────────────────────────────────────────────────────── */}
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-4 w-fit">
+        {FILTER_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setFilter(tab.id)}
+            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-all ${
+              filter === tab.id
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+            <span className={`ml-1.5 text-xs ${filter === tab.id ? 'text-gray-500' : 'text-gray-400'}`}>
+              {tab.count}
+            </span>
+          </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Clients Needing Action */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Clients Needing Action</h2>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {needsAction.length === 0 ? (
-              <p className="px-6 py-8 text-center text-sm text-gray-400">All clients up to date</p>
-            ) : (
-              needsAction.slice(0, 5).map((client) => (
-                <Link
-                  key={client.id}
-                  href={`/agency/clients/${client.id}`}
-                  className="flex items-center justify-between px-6 py-3.5 hover:bg-gray-50 transition-colors"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{client.business_name}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {!client.gbp_location_name ? 'GBP not set up' : 'Pending setup'}
-                    </p>
-                  </div>
-                  <StatusBadge status={client.status} />
-                </Link>
-              ))
-            )}
-          </div>
-        </div>
+      {/* ── Client table ────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-sm text-gray-400">Loading clients…</div>
+        ) : displayed.length === 0 ? (
+          <div className="p-12 text-center text-sm text-gray-400">No clients match this filter</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50 text-left">
+                  <th className="px-5 py-3 font-medium text-gray-500">Business</th>
+                  <th className="px-4 py-3 font-medium text-gray-500">Niche</th>
+                  <th className="px-4 py-3 font-medium text-gray-500">City</th>
+                  <th className="px-4 py-3 font-medium text-gray-500">Status</th>
+                  <th className="px-4 py-3 font-medium text-gray-500 text-center">GHL</th>
+                  <th className="px-4 py-3 font-medium text-gray-500 text-center">WP</th>
+                  <th className="px-4 py-3 font-medium text-gray-500">Last Run</th>
+                  <th className="px-5 py-3 font-medium text-gray-500 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {displayed.map((client) => {
+                  const lastRun   = lastRunMap[client.id];
+                  const isRunning = runningIds.has(client.id) || client.status === 'running';
+                  const msg       = runMsg[client.id];
+                  return (
+                    <tr key={client.id} className="hover:bg-gray-50 transition-colors">
+                      {/* Business name */}
+                      <td className="px-5 py-3">
+                        <Link
+                          href={`/agency/clients/${client.id}`}
+                          className="font-medium text-gray-900 hover:text-[#1B2B6B] transition-colors"
+                        >
+                          {client.business_name}
+                        </Link>
+                      </td>
 
-        {/* Recent Pipeline Activity */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Recent Pipeline Activity</h2>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {(recentJobs ?? []).length === 0 ? (
-              <p className="px-6 py-8 text-center text-sm text-gray-400">No recent jobs</p>
-            ) : (
-              (recentJobs ?? []).slice(0, 6).map((job: Job & { clients: { business_name: string } | null }) => (
-                <div key={job.id} className="flex items-center justify-between px-6 py-3.5">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {job.clients?.business_name ?? '—'}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">{job.agent_name}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <JobStatusBadge status={job.status} />
-                    <span className="text-xs text-gray-400">
-                      {job.started_at ? format(new Date(job.started_at), 'dd MMM HH:mm') : '—'}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+                      {/* Niche */}
+                      <td className="px-4 py-3 text-gray-500 capitalize">
+                        {client.niche ?? '—'}
+                      </td>
 
-        {/* Today's Scheduled Tasks */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Upcoming Scheduled Tasks</h2>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {(scheduledJobs ?? []).length === 0 ? (
-              <p className="px-6 py-8 text-center text-sm text-gray-400">No upcoming tasks</p>
-            ) : (
-              (scheduledJobs ?? []).map((job: ScheduledJobWithClient) => (
-                <div key={job.id} className="flex items-center justify-between px-6 py-3.5">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {job.clients?.business_name ?? '—'}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5">{job.job_type}</p>
-                  </div>
-                  <span className="text-xs text-gray-500">
-                    {format(new Date(job.run_at), 'dd MMM HH:mm')}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+                      {/* City */}
+                      <td className="px-4 py-3 text-gray-500">
+                        {[client.city, client.state].filter(Boolean).join(', ') || '—'}
+                      </td>
 
-        {/* Quick Stats */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900">Quick Stats</h2>
+                      {/* Status badge */}
+                      <td className="px-4 py-3">
+                        <StatusBadge status={client.status} />
+                      </td>
+
+                      {/* GHL dot */}
+                      <td className="px-4 py-3 text-center">
+                        <ConnDot set={!!client.ghl_location_id} title={client.ghl_location_id ?? 'Not set'} />
+                      </td>
+
+                      {/* WP dot */}
+                      <td className="px-4 py-3 text-center">
+                        <ConnDot set={!!client.wp_url} title={client.wp_url ?? 'Not set'} />
+                      </td>
+
+                      {/* Last pipeline run */}
+                      <td className="px-4 py-3">
+                        {lastRun ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                              lastRun.status === 'complete' ? 'bg-green-500'
+                              : lastRun.status === 'error'  ? 'bg-red-500'
+                              : lastRun.status === 'running' ? 'bg-blue-500 animate-pulse'
+                              : 'bg-gray-300'
+                            }`} />
+                            <span className="text-xs text-gray-500">
+                              {format(parseISO(lastRun.date), 'dd MMM yyyy')}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">Never</span>
+                        )}
+                      </td>
+
+                      {/* Run Pipeline button */}
+                      <td className="px-5 py-3 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <button
+                            onClick={() => triggerPipeline(client.id)}
+                            disabled={isRunning}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1B2B6B] text-white text-xs font-medium rounded-lg hover:bg-[#243580] disabled:opacity-50 transition-colors whitespace-nowrap"
+                          >
+                            {isRunning ? (
+                              <>
+                                <span className="w-2 h-2 rounded-full bg-white/70 animate-pulse" />
+                                Running…
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
+                                </svg>
+                                Run Pipeline
+                              </>
+                            )}
+                          </button>
+                          {msg && (
+                            <span className={`text-xs ${msg === 'Triggered!' ? 'text-green-600' : 'text-red-500'}`}>
+                              {msg}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <div className="grid grid-cols-2 gap-px bg-gray-100">
-            {[
-              { label: 'Completed Jobs', value: completedJobs.length, sub: 'recent 10' },
-              { label: 'Failed Jobs', value: failedJobs.length, sub: 'recent 10' },
-              { label: 'Live Websites', value: liveWebsites.length, sub: 'total' },
-              { label: 'Active Clients', value: activeClients.length, sub: 'total' },
-            ].map(({ label, value, sub }) => (
-              <div key={label} className="bg-white px-6 py-5">
-                <p className="text-2xl font-bold text-gray-900">{value}</p>
-                <p className="text-sm text-gray-600 mt-0.5">{label}</p>
-                <p className="text-xs text-gray-400">{sub}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-type ScheduledJobWithClient = {
-  id: string;
-  job_type: string;
-  run_at: string;
-  clients: { business_name: string } | null;
-};
+// ─── Small components ─────────────────────────────────────────────────────────
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    active: 'bg-green-100 text-green-700',
-    pending: 'bg-yellow-100 text-yellow-700',
+function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className={`${color} rounded-xl p-5 text-white`}>
+      <p className="text-3xl font-bold">{value}</p>
+      <p className="text-sm opacity-80 mt-1">{label}</p>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: ClientStatus | string }) {
+  const map: Record<string, string> = {
+    active:   'bg-green-100 text-green-700',
+    pending:  'bg-yellow-100 text-yellow-700',
+    running:  'bg-blue-100 text-blue-700',
     complete: 'bg-blue-100 text-blue-700',
+    error:    'bg-red-100 text-red-700',
+    failed:   'bg-red-200 text-red-800',
     inactive: 'bg-gray-100 text-gray-600',
   };
   return (
-    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${styles[status] ?? 'bg-gray-100 text-gray-600'}`}>
+    <span className={`text-xs px-2.5 py-1 rounded-full font-medium capitalize ${map[status] ?? 'bg-gray-100 text-gray-600'}`}>
       {status}
     </span>
   );
 }
 
-function JobStatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    complete: 'bg-green-100 text-green-700',
-    failed: 'bg-red-100 text-red-700',
-    running: 'bg-blue-100 text-blue-700',
-    pending: 'bg-yellow-100 text-yellow-700',
-  };
+function ConnDot({ set, title }: { set: boolean; title: string }) {
   return (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles[status] ?? 'bg-gray-100 text-gray-600'}`}>
-      {status}
-    </span>
+    <span
+      title={title}
+      className={`inline-block w-2.5 h-2.5 rounded-full ${set ? 'bg-green-500' : 'bg-red-400'}`}
+    />
   );
 }

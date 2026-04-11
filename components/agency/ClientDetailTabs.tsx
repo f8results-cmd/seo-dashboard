@@ -8,6 +8,7 @@ import type { Client, Job, Score, GbpPost, ReviewResponse, RankTracking, Heatmap
 import NotesHistoryTab from '@/components/agency/NotesHistoryTab';
 import WebsitePromptTab from '@/components/agency/WebsitePromptTab';
 import GBPSetupTab from '@/components/agency/GBPSetupTab';
+import PhotosTab from '@/components/agency/PhotosTab';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -59,6 +60,7 @@ const TABS = [
   { id: 'notes',          label: 'Notes & History' },
   { id: 'website-prompt', label: 'Website Prompt' },
   { id: 'gbp-setup',      label: 'GBP Setup' },
+  { id: 'photos',         label: 'Photos' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -69,7 +71,7 @@ interface Props {
   client: Client;
   jobs: Job[];
   scores: Score[];
-  deliverableKeys: string[];
+  deliverables: { label: string; status: string | null }[];
   gbpPosts: GbpPost[];
   reviews: ReviewResponse[];
   rankings: RankTracking[];
@@ -85,7 +87,7 @@ export default function ClientDetailTabs({
   client,
   jobs,
   scores,
-  deliverableKeys,
+  deliverables,
   gbpPosts,
   reviews,
   rankings,
@@ -95,6 +97,7 @@ export default function ClientDetailTabs({
   monthlyReports,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('gbp');
+  const deliverableKeys = deliverables.map((d) => d.label);
 
   return (
     <div className="flex gap-6 mt-6">
@@ -121,7 +124,13 @@ export default function ClientDetailTabs({
         {activeTab === 'gbp' && <GBPTab client={client} gbpPosts={gbpPosts} reviews={reviews} />}
         {activeTab === 'website' && <WebsiteTab client={client} />}
         {activeTab === 'rankings' && <RankingsTab rankings={rankings} heatmapResult={heatmapResult} />}
-        {activeTab === 'citations' && <CitationsTab client={client} />}
+        {activeTab === 'citations' && (
+          <CitationsTab
+            client={client}
+            deliverables={deliverables}
+            scheduledJobs={scheduledJobs}
+          />
+        )}
         {activeTab === 'pipeline' && (
           <PipelineTab
             client={client}
@@ -142,6 +151,7 @@ export default function ClientDetailTabs({
         )}
         {activeTab === 'website-prompt' && <WebsitePromptTab client={client} />}
         {activeTab === 'gbp-setup' && <GBPSetupTab client={client} />}
+        {activeTab === 'photos' && <PhotosTab client={client} />}
       </div>
 
       {/* Scores sidebar */}
@@ -569,8 +579,7 @@ function RankingsTab({ rankings, heatmapResult }: { rankings: RankTracking[]; he
 
       {rows.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
-          <p className="text-sm font-medium text-gray-500">No ranking data yet</p>
-          <p className="text-xs text-gray-400 mt-1">Rankings will appear after the first Monday rank check</p>
+          <p className="text-sm font-medium text-gray-500">Rankings will appear after first Monday rank check</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -579,6 +588,7 @@ function RankingsTab({ rankings, heatmapResult }: { rankings: RankTracking[]; he
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left px-5 py-3 font-medium text-gray-500">Keyword</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-500">Position</th>
+                <th className="text-center px-4 py-3 font-medium text-gray-500">Previous</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-500">Change</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-500">Local Pack</th>
                 <th className="text-right px-5 py-3 font-medium text-gray-500">Checked</th>
@@ -586,26 +596,34 @@ function RankingsTab({ rankings, heatmapResult }: { rankings: RankTracking[]; he
             </thead>
             <tbody className="divide-y divide-gray-50">
               {rows.map(({ keyword, current, previous }) => {
-                const pos = current.position;
+                const pos     = current.position;
                 const prevPos = previous?.position ?? null;
-                const delta = pos != null && prevPos != null ? prevPos - pos : null;
+                const delta   = pos != null && prevPos != null ? prevPos - pos : null;
                 return (
                   <tr key={keyword} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3 font-medium text-gray-800">{keyword}</td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`font-bold text-base ${pos == null ? 'text-gray-400' : pos <= 3 ? 'text-green-600' : pos <= 10 ? 'text-yellow-600' : 'text-gray-600'}`}>
+                      <span className={`font-bold text-base ${
+                        pos == null    ? 'text-gray-400'
+                        : pos <= 3    ? 'text-green-600'
+                        : pos <= 10   ? 'text-yellow-600'
+                        : 'text-gray-600'
+                      }`}>
                         {pos ?? '—'}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-center text-sm text-gray-400">
+                      {prevPos ?? '—'}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       {delta == null ? (
-                        <span className="text-gray-400">→</span>
+                        <span className="text-gray-400 text-xs">—</span>
                       ) : delta > 0 ? (
-                        <span className="text-green-600 font-medium">▲ {delta}</span>
+                        <span className="text-green-600 font-medium text-xs">▲ {delta}</span>
                       ) : delta < 0 ? (
-                        <span className="text-red-500 font-medium">▼ {Math.abs(delta)}</span>
+                        <span className="text-red-500 font-medium text-xs">▼ {Math.abs(delta)}</span>
                       ) : (
-                        <span className="text-gray-400">→</span>
+                        <span className="text-gray-400 text-xs">→</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -717,8 +735,27 @@ function HeatmapGrid({ heatmap }: { heatmap: HeatmapResult }) {
 
 // ─── Tab 4: Citations ─────────────────────────────────────────────────────────
 
-function CitationsTab({ client }: { client: Client }) {
+function CitationsTab({
+  client,
+  deliverables,
+  scheduledJobs,
+}: {
+  client: Client;
+  deliverables: { label: string; status: string | null }[];
+  scheduledJobs: ScheduledJob[];
+}) {
   const websiteData = client.website_data as Record<string, unknown> | null;
+
+  // Last citation audit from scheduled_jobs
+  const lastAudit = scheduledJobs
+    .filter((sj) => sj.job_type === 'monthly_citation_audit' && sj.completed_at)
+    .sort((a, b) => new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime())[0];
+
+  // Citation-related deliverables (label contains 'citation')
+  const citationDeliverables = deliverables.filter((d) =>
+    d.label.toLowerCase().includes('citation')
+  );
+  const citationsSubmitted = citationDeliverables.some((d) => d.status === 'complete');
 
   // LeadSnap data (stored by citation_agent)
   const leadsnapLocationId = websiteData?.leadsnap_location_id as number | null | undefined;
@@ -788,12 +825,50 @@ function CitationsTab({ client }: { client: Client }) {
             </div>
           )}
         </div>
+      ) : citationsSubmitted ? (
+        <div className="bg-green-50 border border-green-100 rounded-xl p-4 text-sm text-green-800">
+          <strong>Citations submitted.</strong> LeadSnap not yet linked — run the citation agent again to connect the location ID.
+        </div>
       ) : (
         <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm text-amber-800">
-          <strong>LeadSnap not linked.</strong> Run the citation agent to connect this client to LeadSnap citation building.
-          Ensure the client has a <code className="text-xs bg-amber-100 px-1 py-0.5 rounded">google_place_id</code> set.
+          Citations will be submitted when pipeline completes. Ensure the client has a{' '}
+          <code className="text-xs bg-amber-100 px-1 py-0.5 rounded">google_place_id</code> set.
         </div>
       )}
+
+      {/* Last audit + deliverable status row */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+        <h3 className="font-semibold text-gray-900 mb-3 text-sm">Submission Status</h3>
+        <div className="divide-y divide-gray-50">
+          <div className="flex items-center justify-between py-2.5 first:pt-0">
+            <span className="text-xs font-medium text-gray-500">Last Citation Audit</span>
+            <span className="text-xs text-gray-700">
+              {lastAudit?.completed_at
+                ? format(parseISO(lastAudit.completed_at), 'd MMM yyyy')
+                : '—'}
+            </span>
+          </div>
+          {citationDeliverables.map((d) => (
+            <div key={d.label} className="flex items-center justify-between py-2.5">
+              <span className="text-xs font-medium text-gray-500 capitalize">
+                {d.label.replace(/_/g, ' ')}
+              </span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                d.status === 'complete' ? 'bg-green-100 text-green-700'
+                : d.status === 'error'  ? 'bg-red-100 text-red-700'
+                : 'bg-yellow-100 text-yellow-700'
+              }`}>
+                {d.status ?? 'pending'}
+              </span>
+            </div>
+          ))}
+          {citationDeliverables.length === 0 && (
+            <div className="py-2.5">
+              <span className="text-xs text-gray-400">No citation deliverables recorded yet</span>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Summary stats */}
       <div className="grid grid-cols-3 gap-4">
