@@ -873,6 +873,12 @@ function PipelineTab({ client, jobs, deliverableKeys, latestJobPerAgent }: {
   const [editingGHL, setEditingGHL] = useState(false);
   const [ghlValue, setGhlValue] = useState(client.ghl_location_id ?? '');
   const [savingGHL, setSavingGHL] = useState(false);
+  const [editingWP, setEditingWP] = useState(false);
+  const [wpUrl, setWpUrl] = useState(client.wp_url ?? '');
+  const [wpUsername, setWpUsername] = useState(client.wp_username ?? '');
+  const [wpAppPassword, setWpAppPassword] = useState('');
+  const [savingWP, setSavingWP] = useState(false);
+  const [savingSkipWebsite, setSavingSkipWebsite] = useState(false);
   const router = useRouter();
 
   async function retryAgent(agentName: string) {
@@ -895,6 +901,35 @@ function PipelineTab({ client, jobs, deliverableKeys, latestJobPerAgent }: {
     });
     setSavingGHL(false);
     setEditingGHL(false);
+    router.refresh();
+  }
+
+  async function saveWP() {
+    setSavingWP(true);
+    const body: Record<string, string | null> = {
+      wp_url: wpUrl.trim() || null,
+      wp_username: wpUsername.trim() || null,
+    };
+    if (wpAppPassword.trim()) body.wp_app_password = wpAppPassword.trim();
+    await fetch(`/api/clients/${client.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    setSavingWP(false);
+    setEditingWP(false);
+    setWpAppPassword('');
+    router.refresh();
+  }
+
+  async function toggleSkipWebsite() {
+    setSavingSkipWebsite(true);
+    await fetch(`/api/clients/${client.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skip_website: !client.skip_website }),
+    });
+    setSavingSkipWebsite(false);
     router.refresh();
   }
 
@@ -1013,6 +1048,144 @@ function PipelineTab({ client, jobs, deliverableKeys, latestJobPerAgent }: {
               )}
             </div>
           </div>
+
+        </div>
+      </div>
+
+      {/* ── WordPress ── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+        <h3 className="font-semibold text-gray-900 mb-4">WordPress</h3>
+        <div className="divide-y divide-gray-50">
+
+          {/* Managed toggle */}
+          <div className="py-3 first:pt-0">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Website managed by Figure 8 Results</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {client.skip_website ? 'Off — website build skipped' : 'On — WordPress fields active'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {!client.skip_website && (
+                  client.wp_url ? (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-100 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                      WordPress Connected
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-gray-100 border border-gray-200 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                      No WordPress
+                    </span>
+                  )
+                )}
+                <button
+                  type="button"
+                  onClick={toggleSkipWebsite}
+                  disabled={savingSkipWebsite}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-60 ${!client.skip_website ? 'bg-[#1B2B6B]' : 'bg-gray-200'}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${!client.skip_website ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* WP fields — only when managed */}
+          {!client.skip_website && (
+            <>
+              {/* wp_url */}
+              <div className="py-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-700">WordPress URL</p>
+                    {editingWP ? (
+                      <input
+                        type="url"
+                        value={wpUrl}
+                        onChange={(e) => setWpUrl(e.target.value)}
+                        placeholder="https://yoursite.ghl-wordpress.com"
+                        className="mt-1.5 w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B2B6B] focus:border-transparent"
+                      />
+                    ) : (
+                      <p className="text-xs text-gray-400 font-mono mt-0.5 truncate">
+                        {client.wp_url || 'Not set'}
+                      </p>
+                    )}
+                  </div>
+                  {!editingWP && (
+                    <button onClick={() => setEditingWP(true)} className="text-xs font-medium text-[#1B2B6B] hover:text-[#243580] transition-colors flex-shrink-0 pt-0.5">
+                      Edit
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* wp_username */}
+              <div className="py-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-700">WordPress Username</p>
+                    {editingWP ? (
+                      <input
+                        type="text"
+                        value={wpUsername}
+                        onChange={(e) => setWpUsername(e.target.value)}
+                        placeholder="admin"
+                        className="mt-1.5 w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B2B6B] focus:border-transparent"
+                      />
+                    ) : (
+                      <p className="text-xs text-gray-400 font-mono mt-0.5">
+                        {client.wp_username || 'Not set'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* wp_app_password */}
+              <div className="py-3 last:pb-0">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-700">WordPress App Password</p>
+                    {editingWP ? (
+                      <input
+                        type="password"
+                        value={wpAppPassword}
+                        onChange={(e) => setWpAppPassword(e.target.value)}
+                        placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
+                        className="mt-1.5 w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B2B6B] focus:border-transparent"
+                      />
+                    ) : (
+                      <p className="text-xs text-gray-400 font-mono mt-0.5">
+                        {client.wp_app_password ? '•••• •••• •••• •••• •••• ••••' : 'Not set'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Save / Cancel row */}
+              {editingWP && (
+                <div className="pt-3 flex items-center gap-2">
+                  <button
+                    onClick={saveWP}
+                    disabled={savingWP}
+                    className="px-3 py-1.5 text-xs font-medium bg-[#1B2B6B] text-white rounded-lg hover:bg-[#243580] disabled:opacity-60 transition-colors"
+                  >
+                    {savingWP ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => { setEditingWP(false); setWpUrl(client.wp_url ?? ''); setWpUsername(client.wp_username ?? ''); setWpAppPassword(''); }}
+                    className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </>
+          )}
 
         </div>
       </div>

@@ -80,6 +80,9 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
     skip_website: client.skip_website ?? false,
     auto_respond_reviews: client.auto_respond_reviews ?? false,
     blog_delivery: client.blog_delivery ?? 'auto-publish',
+    wp_url: client.wp_url ?? '',
+    wp_username: client.wp_username ?? '',
+    wp_app_password: client.wp_app_password ?? '',
     agency_notes: client.agency_notes ?? '',
   });
 
@@ -115,6 +118,9 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
         google_tag_id: form.google_tag_id || null,
         agency_notes: form.agency_notes || null,
         blog_delivery: form.blog_delivery || null,
+        wp_url: form.skip_website ? null : (form.wp_url || null),
+        wp_username: form.skip_website ? null : (form.wp_username || null),
+        wp_app_password: form.skip_website ? null : (form.wp_app_password || null),
       };
 
       const res = await fetch(`/api/clients/${client.id}`, {
@@ -314,29 +320,45 @@ export default function EditClientModal({ client, onClose }: EditClientModalProp
               onChange={(v) => set('skip_website', !v)}
             />
             {!form.skip_website ? (
-              <div>
-                <p className="text-xs font-medium text-gray-600 mb-2">Blog delivery method</p>
-                <div className="flex gap-6">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="edit_blog_delivery"
-                      value="auto-publish"
-                      checked={form.blog_delivery === 'auto-publish'}
-                      onChange={() => set('blog_delivery', 'auto-publish')}
-                    />
-                    <span className="text-sm text-gray-700">Auto-publish to website</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="edit_blog_delivery"
-                      value="email"
-                      checked={form.blog_delivery === 'email'}
-                      onChange={() => set('blog_delivery', 'email')}
-                    />
-                    <span className="text-sm text-gray-700">Email for manual upload</span>
-                  </label>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-2">Blog delivery method</p>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="edit_blog_delivery"
+                        value="auto-publish"
+                        checked={form.blog_delivery === 'auto-publish'}
+                        onChange={() => set('blog_delivery', 'auto-publish')}
+                      />
+                      <span className="text-sm text-gray-700">Auto-publish to website</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="edit_blog_delivery"
+                        value="email"
+                        checked={form.blog_delivery === 'email'}
+                        onChange={() => set('blog_delivery', 'email')}
+                      />
+                      <span className="text-sm text-gray-700">Email for manual upload</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="border-t border-gray-100 pt-3 space-y-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">WordPress Connection</p>
+                  <Field label="WordPress URL">
+                    <input className={input} type="url" value={form.wp_url} onChange={(e) => set('wp_url', e.target.value)} placeholder="https://yoursite.ghl-wordpress.com" />
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="WordPress Username">
+                      <input className={input} type="text" value={form.wp_username} onChange={(e) => set('wp_username', e.target.value)} placeholder="admin" />
+                    </Field>
+                    <Field label="WordPress App Password">
+                      <input className={input} type="password" value={form.wp_app_password} onChange={(e) => set('wp_app_password', e.target.value)} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" />
+                    </Field>
+                  </div>
                 </div>
               </div>
             ) : (

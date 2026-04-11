@@ -21,6 +21,9 @@ export interface Client {
   brand_accent_color: string | null;
   ghl_location_id: string | null;
   ghl_api_key: string | null;
+  wp_url: string | null;
+  wp_username: string | null;
+  wp_app_password: string | null;
   agency_notes: string | null;
   blog_delivery: string | null;
   status: ClientStatus;

@@ -31,6 +31,9 @@ interface FormData {
   skip_website: boolean;
   auto_respond_reviews: boolean;
   blog_delivery: string;
+  wp_url: string;
+  wp_username: string;
+  wp_app_password: string;
   agency_notes: string;
 }
 
@@ -42,7 +45,9 @@ const INITIAL: FormData = {
   brand_primary_color: '#1B2B6B', brand_accent_color: '#E8622A',
   ghl_location_id: '', ghl_api_key: '', ghl_webhook_url: '',
   google_maps_embed_url: '', google_place_id: '', google_tag_id: '',
-  skip_website: false, auto_respond_reviews: false, blog_delivery: 'auto-publish', agency_notes: '',
+  skip_website: false, auto_respond_reviews: false, blog_delivery: 'auto-publish',
+  wp_url: '', wp_username: '', wp_app_password: '',
+  agency_notes: '',
 };
 
 const AU_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
@@ -73,6 +78,10 @@ export default function NewClientPage() {
         years_in_business: form.years_in_business ? parseInt(form.years_in_business) : null,
         review_count: form.review_count ? parseInt(form.review_count) : null,
         review_rating: form.review_rating ? parseFloat(form.review_rating) : null,
+        // Clear WP credentials when website is not managed by F8
+        wp_url: form.skip_website ? null : (form.wp_url || null),
+        wp_username: form.skip_website ? null : (form.wp_username || null),
+        wp_app_password: form.skip_website ? null : (form.wp_app_password || null),
       };
 
       const res = await fetch('/api/clients', {
@@ -273,31 +282,65 @@ export default function NewClientPage() {
               onChange={(v) => update('skip_website', !v)}
             />
             {!form.skip_website ? (
-              <div className="pl-1">
-                <p className="text-xs font-medium text-gray-600 mb-2">Blog delivery method</p>
-                <div className="flex gap-6">
-                  <label className="flex items-center gap-2 cursor-pointer">
+              <div className="pl-1 space-y-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-2">Blog delivery method</p>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="blog_delivery"
+                        value="auto-publish"
+                        checked={form.blog_delivery === 'auto-publish'}
+                        onChange={() => update('blog_delivery', 'auto-publish')}
+                        className="accent-[#1B2B6B]"
+                      />
+                      <span className="text-sm text-gray-700">Auto-publish to website</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="blog_delivery"
+                        value="email"
+                        checked={form.blog_delivery === 'email'}
+                        onChange={() => update('blog_delivery', 'email')}
+                        className="accent-[#1B2B6B]"
+                      />
+                      <span className="text-sm text-gray-700">Email for manual upload</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="border-t border-gray-100 pt-4 space-y-3">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">WordPress Connection</p>
+                  <Field label="WordPress URL">
                     <input
-                      type="radio"
-                      name="blog_delivery"
-                      value="auto-publish"
-                      checked={form.blog_delivery === 'auto-publish'}
-                      onChange={() => update('blog_delivery', 'auto-publish')}
-                      className="accent-[#1B2B6B]"
+                      type="url"
+                      value={form.wp_url}
+                      onChange={(e) => update('wp_url', e.target.value)}
+                      placeholder="https://yoursite.ghl-wordpress.com"
+                      className={inputCls}
                     />
-                    <span className="text-sm text-gray-700">Auto-publish to website</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="blog_delivery"
-                      value="email"
-                      checked={form.blog_delivery === 'email'}
-                      onChange={() => update('blog_delivery', 'email')}
-                      className="accent-[#1B2B6B]"
-                    />
-                    <span className="text-sm text-gray-700">Email for manual upload</span>
-                  </label>
+                  </Field>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="WordPress Username">
+                      <input
+                        type="text"
+                        value={form.wp_username}
+                        onChange={(e) => update('wp_username', e.target.value)}
+                        placeholder="admin"
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="WordPress App Password">
+                      <input
+                        type="password"
+                        value={form.wp_app_password}
+                        onChange={(e) => update('wp_app_password', e.target.value)}
+                        placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
+                        className={inputCls}
+                      />
+                    </Field>
+                  </div>
                 </div>
               </div>
             ) : (
