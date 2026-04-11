@@ -4,7 +4,8 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { format, parseISO } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import type { Client, Job, Score, GbpPost, ReviewResponse, RankTracking, HeatmapResult } from '@/lib/types';
+import type { Client, Job, Score, GbpPost, ReviewResponse, RankTracking, HeatmapResult, ScheduledJob, MonthlyReport } from '@/lib/types';
+import NotesHistoryTab from '@/components/agency/NotesHistoryTab';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -48,11 +49,12 @@ const AU_DIRECTORIES = [
 ];
 
 const TABS = [
-  { id: 'gbp', label: 'Google Business Profile' },
+  { id: 'gbp',     label: 'Google Business Profile' },
   { id: 'website', label: 'Website' },
-  { id: 'rankings', label: 'Rankings' },
-  { id: 'citations', label: 'Citations' },
-  { id: 'pipeline', label: 'Pipeline' },
+  { id: 'rankings',label: 'Rankings' },
+  { id: 'citations',label: 'Citations' },
+  { id: 'pipeline',label: 'Pipeline' },
+  { id: 'notes',   label: 'Notes & History' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -69,6 +71,8 @@ interface Props {
   rankings: RankTracking[];
   latestJobPerAgent: Record<string, Job>;
   heatmapResult: HeatmapResult | null;
+  scheduledJobs: ScheduledJob[];
+  monthlyReports: MonthlyReport[];
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -83,6 +87,8 @@ export default function ClientDetailTabs({
   rankings,
   latestJobPerAgent,
   heatmapResult,
+  scheduledJobs,
+  monthlyReports,
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('gbp');
 
@@ -118,6 +124,16 @@ export default function ClientDetailTabs({
             jobs={jobs}
             deliverableKeys={deliverableKeys}
             latestJobPerAgent={latestJobPerAgent}
+          />
+        )}
+        {activeTab === 'notes' && (
+          <NotesHistoryTab
+            client={client}
+            jobs={jobs}
+            scheduledJobs={scheduledJobs}
+            rankings={rankings}
+            gbpPosts={gbpPosts}
+            monthlyReports={monthlyReports}
           />
         )}
       </div>

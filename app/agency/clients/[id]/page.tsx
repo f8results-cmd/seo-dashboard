@@ -6,7 +6,7 @@ import Link from 'next/link';
 import ClientDetailTabs from '@/components/agency/ClientDetailTabs';
 import EditClientModal from '@/components/agency/EditClientModal';
 import PipelinePoller from '@/components/agency/PipelinePoller';
-import type { Client, Job, Score, GbpPost, ReviewResponse, RankTracking, HeatmapResult } from '@/lib/types';
+import type { Client, Job, Score, GbpPost, ReviewResponse, RankTracking, HeatmapResult, ScheduledJob, MonthlyReport } from '@/lib/types';
 import { createClient } from '@/lib/supabase/client';
 
 const AGENT_LABELS: Record<string, string> = {
@@ -29,6 +29,8 @@ interface PageData {
   reviews: ReviewResponse[];
   rankings: RankTracking[];
   heatmapResult: HeatmapResult | null;
+  scheduledJobs: ScheduledJob[];
+  monthlyReports: MonthlyReport[];
 }
 
 export default function ClientDetailPage() {
@@ -51,6 +53,8 @@ export default function ClientDetailPage() {
       { data: reviews },
       { data: rankings },
       { data: heatmapRows },
+      { data: scheduledJobs },
+      { data: monthlyReports },
     ] = await Promise.all([
       supabase.from('clients').select('*').eq('id', id).single(),
       supabase.from('jobs').select('*').eq('client_id', id)
@@ -67,6 +71,10 @@ export default function ClientDetailPage() {
         .order('checked_at', { ascending: false }),
       supabase.from('heatmap_results').select('*').eq('client_id', id)
         .order('scan_date', { ascending: false }).limit(1),
+      supabase.from('scheduled_jobs').select('*').eq('client_id', id)
+        .order('run_at', { ascending: false }).limit(100),
+      supabase.from('monthly_reports').select('*').eq('client_id', id)
+        .order('created_at', { ascending: false }),
     ]);
 
     if (clientData) {
@@ -79,6 +87,8 @@ export default function ClientDetailPage() {
         reviews: (reviews as ReviewResponse[]) ?? [],
         rankings: (rankings as RankTracking[]) ?? [],
         heatmapResult: (heatmapRows as HeatmapResult[] | null)?.[0] ?? null,
+        scheduledJobs: (scheduledJobs as ScheduledJob[]) ?? [],
+        monthlyReports: (monthlyReports as MonthlyReport[]) ?? [],
       });
     }
     setLoading(false);
@@ -259,6 +269,8 @@ export default function ClientDetailPage() {
         rankings={rankings}
         latestJobPerAgent={latestJobPerAgent}
         heatmapResult={heatmapResult}
+        scheduledJobs={data.scheduledJobs}
+        monthlyReports={data.monthlyReports}
       />
 
       {/* ── Edit Modal ────────────────────────────────────────────────────── */}
