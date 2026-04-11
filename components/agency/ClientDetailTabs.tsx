@@ -6,6 +6,8 @@ import { format, parseISO } from 'date-fns';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { Client, Job, Score, GbpPost, ReviewResponse, RankTracking, HeatmapResult, ScheduledJob, MonthlyReport } from '@/lib/types';
 import NotesHistoryTab from '@/components/agency/NotesHistoryTab';
+import WebsitePromptTab from '@/components/agency/WebsitePromptTab';
+import GBPSetupTab from '@/components/agency/GBPSetupTab';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -49,12 +51,14 @@ const AU_DIRECTORIES = [
 ];
 
 const TABS = [
-  { id: 'gbp',     label: 'Google Business Profile' },
-  { id: 'website', label: 'Website' },
-  { id: 'rankings',label: 'Rankings' },
-  { id: 'citations',label: 'Citations' },
-  { id: 'pipeline',label: 'Pipeline' },
-  { id: 'notes',   label: 'Notes & History' },
+  { id: 'gbp',            label: 'Google Business Profile' },
+  { id: 'website',        label: 'Website' },
+  { id: 'rankings',       label: 'Rankings' },
+  { id: 'citations',      label: 'Citations' },
+  { id: 'pipeline',       label: 'Pipeline' },
+  { id: 'notes',          label: 'Notes & History' },
+  { id: 'website-prompt', label: 'Website Prompt' },
+  { id: 'gbp-setup',      label: 'GBP Setup' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -136,6 +140,8 @@ export default function ClientDetailTabs({
             monthlyReports={monthlyReports}
           />
         )}
+        {activeTab === 'website-prompt' && <WebsitePromptTab client={client} />}
+        {activeTab === 'gbp-setup' && <GBPSetupTab client={client} />}
       </div>
 
       {/* Scores sidebar */}
@@ -864,6 +870,9 @@ function PipelineTab({ client, jobs, deliverableKeys, latestJobPerAgent }: {
   client: Client; jobs: Job[]; deliverableKeys: string[]; latestJobPerAgent: Record<string, Job>;
 }) {
   const [retrying, setRetrying] = useState<string | null>(null);
+  const [editingGHL, setEditingGHL] = useState(false);
+  const [ghlValue, setGhlValue] = useState(client.ghl_location_id ?? '');
+  const [savingGHL, setSavingGHL] = useState(false);
   const router = useRouter();
 
   async function retryAgent(agentName: string) {
@@ -877,11 +886,138 @@ function PipelineTab({ client, jobs, deliverableKeys, latestJobPerAgent }: {
     router.refresh();
   }
 
+  async function saveGHL() {
+    setSavingGHL(true);
+    await fetch(`/api/clients/${client.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ghl_location_id: ghlValue.trim() || null }),
+    });
+    setSavingGHL(false);
+    setEditingGHL(false);
+    router.refresh();
+  }
+
   const deliverableSet = new Set(deliverableKeys);
+  const ghlConnected = !!client.ghl_location_id;
+
+  // Last completed citation agent run
+  const lastCitationJob = [...jobs]
+    .filter((j) => j.agent_name === 'citation_agent' && j.status === 'complete' && j.completed_at)
+    .sort((a, b) => new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime())[0];
 
   return (
     <div className="space-y-4">
-      {/* Agent Status */}
+
+      {/* ── Connection Status ── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+        <h3 className="font-semibold text-gray-900 mb-4">Connection Status</h3>
+        <div className="divide-y divide-gray-50">
+
+          {/* GHL Sub-account */}
+          <div className="py-3 first:pt-0">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-700">GHL Sub-account</p>
+                {editingGHL ? (
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      type="text"
+                      value={ghlValue}
+                      onChange={(e) => setGhlValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveGHL(); if (e.key === 'Escape') { setEditingGHL(false); setGhlValue(client.ghl_location_id ?? ''); } }}
+                      placeholder="e.g. RIFIicGZ5P3b3kEfLh2c"
+                      autoFocus
+                      className="flex-1 px-3 py-1.5 text-sm font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B2B6B] focus:border-transparent"
+                    />
+                    <button
+                      onClick={saveGHL}
+                      disabled={savingGHL}
+                      className="px-3 py-1.5 text-xs font-medium bg-[#1B2B6B] text-white rounded-lg hover:bg-[#243580] disabled:opacity-60 transition-colors"
+                    >
+                      {savingGHL ? 'Saving…' : 'Save'}
+                    </button>
+                    <button
+                      onClick={() => { setEditingGHL(false); setGhlValue(client.ghl_location_id ?? ''); }}
+                      className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 font-mono mt-0.5">
+                    {client.ghl_location_id || 'Not set — click Edit to add'}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
+                <ConnectionBadge connected={ghlConnected} />
+                {!editingGHL && (
+                  <button
+                    onClick={() => setEditingGHL(true)}
+                    className="text-xs font-medium text-[#1B2B6B] hover:text-[#243580] transition-colors"
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* GBP Posting */}
+          <div className="py-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-gray-700">GBP Posting</p>
+              {ghlConnected ? (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-100 px-2.5 py-1 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                  Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-100 px-2.5 py-1 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Pending GHL connection
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Citations */}
+          <div className="py-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-gray-700">Citations</p>
+              <span className="text-sm text-gray-500">
+                {lastCitationJob?.completed_at
+                  ? `Last submitted ${format(parseISO(lastCitationJob.completed_at), 'd MMM yyyy')}`
+                  : 'Not yet submitted'}
+              </span>
+            </div>
+          </div>
+
+          {/* Live URL */}
+          <div className="py-3 last:pb-0">
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm font-medium text-gray-700">Live URL</p>
+              {client.live_url ? (
+                <a
+                  href={client.live_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-sm text-[#1B2B6B] hover:underline truncate max-w-xs"
+                >
+                  {client.live_url}
+                  <ExternalLinkIcon />
+                </a>
+              ) : (
+                <span className="text-sm text-gray-400">Not deployed</span>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* ── Agent Status ── */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <h3 className="font-semibold text-gray-900 mb-4">Agent Status</h3>
         <div className="space-y-1">
@@ -890,7 +1026,6 @@ function PipelineTab({ client, jobs, deliverableKeys, latestJobPerAgent }: {
             const hasCachedOutput = deliverableSet.has(`_output:${agentName}`);
             const effectiveStatus = job?.status ?? 'pending';
 
-            // Duration
             let duration: string | null = null;
             if (job?.started_at && job?.completed_at) {
               const secs = Math.round(
@@ -938,7 +1073,7 @@ function PipelineTab({ client, jobs, deliverableKeys, latestJobPerAgent }: {
         </div>
       </div>
 
-      {/* Job History */}
+      {/* ── Job History ── */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <h3 className="font-semibold text-gray-900 mb-4">Job History</h3>
         <div className="overflow-x-auto">
@@ -1241,6 +1376,20 @@ function CitationStatusBadge({ status }: { status: string }) {
   return (
     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${styles[status] ?? 'bg-gray-100 text-gray-600'}`}>
       {labels[status] ?? status}
+    </span>
+  );
+}
+
+function ConnectionBadge({ connected }: { connected: boolean }) {
+  return connected ? (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-100 px-2.5 py-1 rounded-full">
+      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+      Connected
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-100 px-2.5 py-1 rounded-full">
+      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+      Not connected
     </span>
   );
 }
