@@ -1,8 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import type { Client } from '@/lib/types';
+
+function GBPSetupSkeleton() {
+  return (
+    <div className="p-6 space-y-4">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="border border-gray-200 rounded-xl overflow-hidden animate-pulse">
+          <div className="px-5 py-4 bg-gray-50 flex items-center justify-between">
+            <div className="h-4 bg-gray-200 rounded w-40" />
+            <div className="h-4 bg-gray-200 rounded w-4" />
+          </div>
+          <div className="px-5 py-4 space-y-2">
+            <div className="h-4 bg-gray-200 rounded w-3/4" />
+            <div className="h-4 bg-gray-200 rounded w-1/2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -36,6 +55,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function GBPSetupTab({ client }: { client: Client }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return <GBPSetupSkeleton />;
+
   const wd = client.website_data as Record<string, unknown> ?? {};
   const gbpCategories = wd.gbp_categories as { primary: string; secondary: string[] } | undefined;
   const gbpServices = wd.gbp_services as Array<{ name: string; description: string }> | undefined;

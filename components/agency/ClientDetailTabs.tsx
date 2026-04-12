@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { Client } from '@/lib/types';
 import TodoTab        from './tabs/TodoTab';
@@ -31,31 +32,35 @@ const TABS = [
   { id: 'pipeline',     label: 'Pipeline' },
 ];
 
+function renderTabContent(tabId: string, client: Client, onRefresh?: () => void) {
+  switch (tabId) {
+    case 'todo':      return <TodoTab client={client} onUpdate={onRefresh} />;
+    case 'activity':  return <ActivityLogTab clientId={client.id} />;
+    case 'friday':    return <FridayUpdateTab client={client} />;
+    case 'gbp-setup': return <GBPSetupTab client={client} />;
+    case 'gbp-posts': return <GBPPostsTab clientId={client.id} />;
+    case 'website':   return <WebsiteTab client={client} />;
+    case 'citations': return <CitationsTab client={client} />;
+    case 'rank':      return <RankTrackingTab clientId={client.id} />;
+    case 'photos':    return <PhotosTab client={client} onUpdate={onRefresh} />;
+    case 'pipeline':  return <PipelineTab client={client} />;
+    default:          return <TodoTab client={client} onUpdate={onRefresh} />;
+  }
+}
+
 export default function ClientDetailTabs({ client, onRefresh }: Props) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const activeTab = searchParams.get('tab') ?? 'todo';
 
+  // Track which tabs have been visited — each tab mounts once and stays in the DOM
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(() => new Set([activeTab]));
+
   function setTab(id: string) {
+    setLoadedTabs(prev => new Set([...prev, id]));
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', id);
     router.replace(`?${params.toString()}`, { scroll: false });
-  }
-
-  function renderTab() {
-    switch (activeTab) {
-      case 'todo':      return <TodoTab client={client} onUpdate={onRefresh} />;
-      case 'activity':  return <ActivityLogTab clientId={client.id} />;
-      case 'friday':    return <FridayUpdateTab client={client} />;
-      case 'gbp-setup': return <GBPSetupTab client={client} />;
-      case 'gbp-posts': return <GBPPostsTab clientId={client.id} />;
-      case 'website':   return <WebsiteTab client={client} />;
-      case 'citations': return <CitationsTab client={client} />;
-      case 'rank':      return <RankTrackingTab clientId={client.id} />;
-      case 'photos':    return <PhotosTab client={client} onUpdate={onRefresh} />;
-      case 'pipeline':  return <PipelineTab client={client} />;
-      default:          return <TodoTab client={client} onUpdate={onRefresh} />;
-    }
   }
 
   return (
@@ -77,8 +82,16 @@ export default function ClientDetailTabs({ client, onRefresh }: Props) {
         ))}
       </div>
 
-      {/* Tab content */}
-      <div>{renderTab()}</div>
+      {/* Tab content — only mount each tab on first visit, then show/hide to avoid re-fetching */}
+      <div>
+        {TABS.map(tab =>
+          loadedTabs.has(tab.id) ? (
+            <div key={tab.id} style={{ display: activeTab === tab.id ? 'block' : 'none' }}>
+              {renderTabContent(tab.id, client, onRefresh)}
+            </div>
+          ) : null
+        )}
+      </div>
     </div>
   );
 }

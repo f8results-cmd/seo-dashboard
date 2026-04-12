@@ -5,6 +5,8 @@ import { healthColour, calcStaffChecklistPct } from '@/lib/health';
 import type { Client, ClientTask } from '@/lib/types';
 import { CheckSquare, Users, Bell, Clock, ChevronRight, Plus } from 'lucide-react';
 
+export const revalidate = 30;
+
 const STATUS_STYLES: Record<string, string> = {
   active:   'bg-green-100 text-green-700',
   pending:  'bg-amber-100 text-amber-700',
@@ -33,8 +35,9 @@ export default async function AgencyDashboard() {
     { data: todayTasks },
     { data: weekTasks },
     { data: activeClients },
+    { data: latestJobsRaw },
   ] = await Promise.all([
-    supabase.from('clients').select('*').order('business_name'),
+    supabase.from('clients').select('*').order('created_at', { ascending: false }),
     supabase.from('client_tasks')
       .select('*, clients(business_name)')
       .eq('completed', false)
@@ -47,11 +50,24 @@ export default async function AgencyDashboard() {
       .gt('due_date', todayStr)
       .order('due_date'),
     supabase.from('clients').select('id', { count: 'exact', head: false }).eq('status', 'active'),
+    // Single query for latest job per client — avoids N+1 per-client lookups
+    supabase.from('jobs')
+      .select('client_id, started_at, status')
+      .not('agent_name', 'eq', '_pipeline_failure')
+      .order('started_at', { ascending: false }),
   ]);
 
   const allClients = (clients ?? []) as Client[];
   const tasksDueToday = (todayTasks ?? []) as (ClientTask & { clients: { business_name: string } | null })[];
   const tasksDueWeek  = (weekTasks  ?? []) as (ClientTask & { clients: { business_name: string } | null })[];
+
+  // Build map: client_id → latest job (first row per client since ordered desc)
+  const lastJobByClient: Record<string, { started_at: string; status: string }> = {};
+  for (const job of (latestJobsRaw ?? [])) {
+    if (!lastJobByClient[job.client_id]) {
+      lastJobByClient[job.client_id] = { started_at: job.started_at, status: job.status };
+    }
+  }
 
   // Compute reminder count: active clients missing friday update in 7 days
   const updatesNeeded = allClients.filter(c =>
@@ -198,11 +214,12 @@ export default async function AgencyDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {allClients.map(client => (
+              {allClients.map((client, idx) => (
                 <tr key={client.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-5 py-3">
                     <Link
                       href={`/agency/clients/${client.id}`}
+                      prefetch={idx < 5}
                       className="font-medium text-gray-900 hover:text-[#E8622A] transition-colors"
                     >
                       {client.business_name}
@@ -256,14 +273,22 @@ export default async function AgencyDashboard() {
                     })()}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-400">
-                    {client.last_friday_update
-                      ? format(parseISO(client.last_friday_update), 'd MMM yyyy')
-                      : <span className="text-red-400">Never</span>
-                    }
+                    <div className="flex flex-col gap-1">
+                      {client.last_friday_update
+                        ? format(parseISO(client.last_friday_update), 'd MMM yyyy')
+                        : <span className="text-red-400">Never</span>
+                      }
+                      {lastJobByClient[client.id] && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full w-fit font-medium ${STATUS_STYLES[lastJobByClient[client.id].status] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {lastJobByClient[client.id].status}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-3 text-right">
                     <Link
                       href={`/agency/clients/${client.id}`}
+                      prefetch={idx < 5}
                       className="flex items-center gap-1 text-xs text-gray-400 hover:text-[#E8622A] transition-colors whitespace-nowrap ml-auto w-fit"
                     >
                       Open <ChevronRight className="w-3.5 h-3.5" />

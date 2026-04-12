@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ExternalLink, RefreshCw, Pencil } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { calcHealthScore, calcOnboardingPct } from '@/lib/health';
 import ClientDetailTabs from '@/components/agency/ClientDetailTabs';
@@ -47,8 +47,54 @@ export default function ClientDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-6 h-6 border-2 border-[#E8622A] border-t-transparent rounded-full animate-spin" />
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        <div className="h-4 bg-gray-200 rounded w-24 animate-pulse" />
+        {/* Header card skeleton */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 animate-pulse">
+          <div className="flex items-start gap-4 flex-wrap">
+            <div className="flex-1 space-y-2">
+              <div className="h-7 bg-gray-200 rounded w-64" />
+              <div className="flex gap-2">
+                <div className="h-5 bg-gray-200 rounded-full w-20" />
+                <div className="h-5 bg-gray-200 rounded w-28" />
+              </div>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 rounded-full bg-gray-200" />
+              <div className="space-y-2 min-w-[140px]">
+                <div className="h-3 bg-gray-200 rounded w-full" />
+                <div className="h-2 bg-gray-200 rounded-full w-full" />
+                <div className="h-3 bg-gray-200 rounded w-1/2 ml-auto" />
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Two-column skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse space-y-3">
+            {[...Array(5)].map((_, i) => (
+              <div key={i}>
+                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+                <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden animate-pulse">
+            <div className="flex border-b border-gray-200 bg-gray-50 gap-1 p-1">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-8 bg-gray-200 rounded w-20 flex-shrink-0" />
+              ))}
+            </div>
+            <div className="p-6 space-y-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i}>
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" />
+                  <div className="h-4 bg-gray-200 rounded w-1/2 mb-2" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -95,6 +141,14 @@ export default function ClientDetailPage() {
               )}
             </div>
           </div>
+
+          {/* Edit button */}
+          <Link
+            href={`/agency/clients/${id}/edit`}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Pencil className="w-3.5 h-3.5" /> Edit
+          </Link>
 
           {/* Health + onboarding */}
           <div className="flex items-center gap-6">

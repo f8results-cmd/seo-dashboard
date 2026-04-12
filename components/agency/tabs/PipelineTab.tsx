@@ -124,7 +124,33 @@ export default function PipelineTab({ client }: { client: Client }) {
     { label: 'Live URL',            key: 'live_url',         value: client.live_url,         masked: false },
   ];
 
-  if (loading) return <div className="p-6 text-gray-400 text-sm">Loading…</div>;
+  if (loading) return (
+    <div className="p-6 space-y-6">
+      <div>
+        <div className="h-5 bg-gray-200 rounded w-36 mb-3 animate-pulse" />
+        <div className="space-y-2 animate-pulse">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5">
+              <div className="h-3 bg-gray-200 rounded w-36" />
+              <div className="h-3 bg-gray-200 rounded flex-1" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="h-5 bg-gray-200 rounded w-28 mb-3 animate-pulse" />
+        <div className="animate-pulse space-y-2">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="border border-gray-200 rounded-lg px-4 py-3 flex items-center gap-3">
+              <div className="h-5 bg-gray-200 rounded-full w-16" />
+              <div className="h-4 bg-gray-200 rounded flex-1" />
+              <div className="h-3 bg-gray-200 rounded w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-6 space-y-6">

@@ -39,7 +39,27 @@ export default function GBPPostsTab({ clientId }: { clientId: string }) {
     failed: posts.filter(p => p.status === 'failed').length,
   };
 
-  if (loading) return <div className="p-6 text-gray-400 text-sm">Loading…</div>;
+  if (loading) return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center justify-between animate-pulse">
+        <div className="h-5 bg-gray-200 rounded w-28" />
+        <div className="flex gap-1">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-7 bg-gray-200 rounded w-20" />)}
+        </div>
+      </div>
+      <div className="animate-pulse space-y-2">
+        <div className="h-4 bg-gray-200 rounded w-full" />
+        {[...Array(8)].map((_, i) => (
+          <div key={i} className="flex gap-4 py-2 border-b border-gray-100">
+            <div className="h-4 bg-gray-200 rounded w-6" />
+            <div className="h-4 bg-gray-200 rounded w-24" />
+            <div className="h-4 bg-gray-200 rounded flex-1" />
+            <div className="h-4 bg-gray-200 rounded-full w-16" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="p-6 space-y-4">

@@ -106,7 +106,7 @@ export default function PhotosTab({ client, onUpdate }: { client: Client; onUpda
         {logoUrl ? (
           <div className="flex items-center gap-4">
             <div className="w-32 h-16 border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
-              <img src={logoUrl} alt="Business logo" className="max-w-full max-h-full object-contain" />
+              <img src={logoUrl} alt="Business logo" className="max-w-full max-h-full object-contain" loading="lazy" />
             </div>
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm text-[#E8622A] cursor-pointer hover:text-[#d05520]">
@@ -188,7 +188,7 @@ export default function PhotosTab({ client, onUpdate }: { client: Client; onUpda
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {photos.map((photo, i) => (
               <div key={i} className="group relative border border-gray-200 rounded-xl overflow-hidden bg-gray-50 aspect-square">
-                <img src={photo.url} alt={photo.label ?? `Photo ${i + 1}`} className="w-full h-full object-cover" />
+                <img src={photo.url} alt={photo.label ?? `Photo ${i + 1}`} className="w-full h-full object-cover" loading="lazy" />
                 {photo.label && (
                   <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-2 py-1 truncate">
                     {photo.label}
