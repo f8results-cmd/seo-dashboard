@@ -21,7 +21,7 @@ interface Step {
 
 export default function OnboardingChecklist({ client, deliverables, gbpPostCount, onUpdate }: Props) {
   const [saving, setSaving] = useState<string | null>(null);
-  const checklist = client.onboarding_checklist ?? {};
+  const checklist: Partial<NonNullable<Client['onboarding_checklist']>> = client.onboarding_checklist ?? {};
   const hasJob = deliverables.some(d => d.status === 'complete');
   const hasPhotos = !!(client.photos && Object.values(client.photos).some(v => v !== null));
 

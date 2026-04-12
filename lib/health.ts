@@ -49,7 +49,7 @@ export function calcOnboardingPct(
   deliverables: Deliverable[],
   gbpPostCount: number,
 ): { pct: number; complete: number; total: number } {
-  const checks = client.onboarding_checklist ?? {};
+  const checks: Partial<NonNullable<Client['onboarding_checklist']>> = client.onboarding_checklist ?? {};
   const citationDel = deliverables.find(d => d.label === 'Citations submitted');
   const hasJob = deliverables.some(d => d.status === 'complete');
 

@@ -81,7 +81,7 @@ export default function PipelineTab({ client }: { client: Client }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const lastFailed = jobs.find(j => j.status === 'error' || j.status === 'failed');
+  const lastFailed = jobs.find(j => j.status === 'error');
 
   async function runPipeline() {
     setRunning(true); setMsg('');
