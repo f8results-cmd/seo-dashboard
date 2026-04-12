@@ -57,7 +57,7 @@ export default function ClientDetailTabs({ client, onRefresh }: Props) {
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(() => new Set([activeTab]));
 
   function setTab(id: string) {
-    setLoadedTabs(prev => new Set([...prev, id]));
+    setLoadedTabs(prev => new Set(Array.from(prev).concat(id)));
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', id);
     router.replace(`?${params.toString()}`, { scroll: false });
