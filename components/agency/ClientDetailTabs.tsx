@@ -44,7 +44,7 @@ export default function ClientDetailTabs({ client, onRefresh }: Props) {
 
   function renderTab() {
     switch (activeTab) {
-      case 'todo':      return <TodoTab clientId={client.id} />;
+      case 'todo':      return <TodoTab client={client} onUpdate={onRefresh} />;
       case 'activity':  return <ActivityLogTab clientId={client.id} />;
       case 'friday':    return <FridayUpdateTab client={client} />;
       case 'gbp-setup': return <GBPSetupTab client={client} />;
@@ -54,7 +54,7 @@ export default function ClientDetailTabs({ client, onRefresh }: Props) {
       case 'rank':      return <RankTrackingTab clientId={client.id} />;
       case 'photos':    return <PhotosTab client={client} onUpdate={onRefresh} />;
       case 'pipeline':  return <PipelineTab client={client} />;
-      default:          return <TodoTab clientId={client.id} />;
+      default:          return <TodoTab client={client} onUpdate={onRefresh} />;
     }
   }
 

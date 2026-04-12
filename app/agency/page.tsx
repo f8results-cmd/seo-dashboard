@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { format, parseISO, startOfDay, addDays, isToday, isBefore } from 'date-fns';
-import { healthColour } from '@/lib/health';
+import { healthColour, calcStaffChecklistPct } from '@/lib/health';
 import type { Client, ClientTask } from '@/lib/types';
 import { CheckSquare, Users, Bell, Clock, ChevronRight, Plus } from 'lucide-react';
 
@@ -192,6 +192,7 @@ export default async function AgencyDashboard() {
                 <th className="px-4 py-3 font-medium">Niche / City</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium text-center">Health</th>
+                <th className="px-4 py-3 font-medium">Delivery</th>
                 <th className="px-4 py-3 font-medium">Last Update</th>
                 <th className="px-5 py-3 font-medium"></th>
               </tr>
@@ -232,6 +233,27 @@ export default async function AgencyDashboard() {
                     >
                       {client.health_score ?? 0}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {(() => {
+                      const { pct, complete, total } = calcStaffChecklistPct(client);
+                      return (
+                        <div className="flex items-center gap-2 min-w-[90px]">
+                          <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                            <div
+                              className="h-1.5 rounded-full transition-all"
+                              style={{
+                                width: `${pct}%`,
+                                backgroundColor: pct === 100 ? '#22c55e' : pct >= 50 ? '#f97316' : '#ef4444',
+                              }}
+                            />
+                          </div>
+                          <span className="text-xs text-gray-500 whitespace-nowrap w-14 text-right">
+                            {complete}/{total}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-400">
                     {client.last_friday_update

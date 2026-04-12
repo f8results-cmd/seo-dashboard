@@ -1,5 +1,24 @@
 export type ClientStatus = 'pending' | 'active' | 'complete' | 'inactive' | 'running' | 'error' | 'failed';
 
+// Staff delivery checklist — 26 standard tasks stored in onboarding_checklist.checklist
+export type StaffChecklistKey =
+  // GBP (9)
+  | 'gbp_primary_category' | 'gbp_secondary_categories' | 'gbp_description'
+  | 'gbp_services' | 'gbp_hours' | 'gbp_logo' | 'gbp_cover_photo' | 'gbp_photos' | 'gbp_ghl_connected'
+  // Website (5)
+  | 'website_reviewed' | 'website_title_tags' | 'website_mobile_check' | 'website_sitemap' | 'website_schema'
+  // SEO (4)
+  | 'seo_services_approved' | 'seo_category_pages' | 'seo_internal_linking' | 'seo_suburb_pages'
+  // Citations (4)
+  | 'citations_leadsnap' | 'citations_backlinks_reviewed' | 'citations_top3_actioned' | 'citations_nap_check'
+  // Client (4)
+  | 'client_welcome_email' | 'client_gbp_guide' | 'client_first_update' | 'client_onboarding_call';
+
+export interface ChecklistItemMeta {
+  assigned_to?: string;
+  due_date?: string | null;
+}
+
 export interface ClientPhotos {
   logo:     string | null;
   cover:    string | null;
@@ -14,10 +33,14 @@ export interface ClientPhotos {
 }
 
 export interface OnboardingChecklist {
-  ghl_created:       boolean;
-  gbp_connected:     boolean;
-  wp_activated:      boolean;
-  first_update_sent: boolean;
+  ghl_created?:       boolean;
+  gbp_connected?:     boolean;
+  wp_activated?:      boolean;
+  first_update_sent?: boolean;
+  // Staff delivery checklist (26 tasks)
+  checklist?: Partial<Record<StaffChecklistKey, boolean>>;
+  // Per-task metadata: assigned_to + due_date
+  checklist_meta?: Partial<Record<StaffChecklistKey, ChecklistItemMeta>>;
 }
 
 export type JobStatus = 'pending' | 'running' | 'complete' | 'error';
@@ -186,8 +209,9 @@ export interface FridayUpdate {
   id: string;
   client_id: string;
   content: string;
-  sent_at: string;
+  sent_at: string | null;
   delivery_method: string;
+  created_at?: string;
 }
 
 // Computed reminder (not a DB table — generated from client data)

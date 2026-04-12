@@ -1,4 +1,14 @@
-import type { Client, Deliverable, GbpPost } from './types';
+import type { Client, Deliverable, GbpPost, StaffChecklistKey } from './types';
+
+// All 26 standard staff checklist keys — used to compute delivery completion %
+const STAFF_CHECKLIST_KEYS: StaffChecklistKey[] = [
+  'gbp_primary_category', 'gbp_secondary_categories', 'gbp_description',
+  'gbp_services', 'gbp_hours', 'gbp_logo', 'gbp_cover_photo', 'gbp_photos', 'gbp_ghl_connected',
+  'website_reviewed', 'website_title_tags', 'website_mobile_check', 'website_sitemap', 'website_schema',
+  'seo_services_approved', 'seo_category_pages', 'seo_internal_linking', 'seo_suburb_pages',
+  'citations_leadsnap', 'citations_backlinks_reviewed', 'citations_top3_actioned', 'citations_nap_check',
+  'client_welcome_email', 'client_gbp_guide', 'client_first_update', 'client_onboarding_call',
+];
 
 /**
  * Calculate health score (0–100) from client data.
@@ -39,6 +49,16 @@ export function healthLabel(score: number): string {
   if (score >= 80) return 'Healthy';
   if (score >= 40) return 'Needs attention';
   return 'Critical';
+}
+
+/**
+ * Calculate staff delivery checklist completion (0–26 tasks, returns pct/complete/total).
+ */
+export function calcStaffChecklistPct(client: Client): { pct: number; complete: number; total: number } {
+  const checklist = client.onboarding_checklist?.checklist ?? {};
+  const total = STAFF_CHECKLIST_KEYS.length;
+  const complete = STAFF_CHECKLIST_KEYS.filter(k => !!checklist[k]).length;
+  return { pct: Math.round((complete / total) * 100), complete, total };
 }
 
 /**

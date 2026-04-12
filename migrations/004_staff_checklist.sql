@@ -1,0 +1,46 @@
+-- Migration 004: Staff delivery checklist
+-- The checklist is stored as JSON within the existing onboarding_checklist JSONB column.
+-- No schema changes are required — this migration is a no-op for the DB.
+--
+-- The checklist sub-object lives at:
+--   clients.onboarding_checklist -> 'checklist'
+--
+-- Example shape written by the UI:
+-- {
+--   "ghl_created": true,
+--   "gbp_connected": false,
+--   "checklist": {
+--     "gbp_primary_category": false,
+--     "gbp_secondary_categories": false,
+--     "gbp_description": false,
+--     "gbp_services": false,
+--     "gbp_hours": false,
+--     "gbp_logo": false,
+--     "gbp_cover_photo": false,
+--     "gbp_photos": false,
+--     "gbp_ghl_connected": false,
+--     "website_reviewed": false,
+--     "website_title_tags": false,
+--     "website_mobile_check": false,
+--     "website_sitemap": false,
+--     "website_schema": false,
+--     "seo_services_approved": false,
+--     "seo_category_pages": false,
+--     "seo_internal_linking": false,
+--     "seo_suburb_pages": false,
+--     "citations_leadsnap": false,
+--     "citations_backlinks_reviewed": false,
+--     "citations_top3_actioned": false,
+--     "citations_nap_check": false,
+--     "client_welcome_email": false,
+--     "client_gbp_guide": false,
+--     "client_first_update": false,
+--     "client_onboarding_call": false
+--   },
+--   "checklist_meta": {
+--     "gbp_primary_category": { "assigned_to": "Sebastian", "due_date": "2025-01-20" }
+--   }
+-- }
+
+-- onboarding_checklist column already exists as JSONB — no ALTER TABLE needed.
+SELECT 1; -- no-op
