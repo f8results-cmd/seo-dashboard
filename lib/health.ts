@@ -79,7 +79,6 @@ export function calcOnboardingPct(
     hasJob,
     !!checks.gbp_connected,
     gbpPostCount >= 52,
-    !!checks.wp_activated,
     !!(client.photos && Object.values(client.photos).some(v => v !== null)),
     !!checks.first_update_sent,
   ];
