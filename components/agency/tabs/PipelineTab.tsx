@@ -116,11 +116,12 @@ export default function PipelineTab({ client }: { client: Client }) {
   }
 
   const fields = [
-    { label: 'GHL Sub-account ID', key: 'ghl_location_id', value: client.ghl_location_id, masked: false },
-    { label: 'WordPress URL', key: 'wp_url', value: client.wp_url, masked: false },
-    { label: 'WordPress Username', key: 'wp_username', value: client.wp_username, masked: false },
-    { label: 'WP App Password', key: 'wp_app_password', value: client.wp_app_password, masked: true },
-    { label: 'Live URL', key: 'live_url', value: client.live_url, masked: false },
+    { label: 'GHL Sub-account ID',  key: 'ghl_location_id',  value: client.ghl_location_id,  masked: false },
+    { label: 'GHL Webhook URL',     key: 'ghl_webhook_url',  value: client.ghl_webhook_url,  masked: false },
+    { label: 'WordPress URL',       key: 'wp_url',           value: client.wp_url,           masked: false },
+    { label: 'WordPress Username',  key: 'wp_username',      value: client.wp_username,      masked: false },
+    { label: 'WP App Password',     key: 'wp_app_password',  value: client.wp_app_password,  masked: true  },
+    { label: 'Live URL',            key: 'live_url',         value: client.live_url,         masked: false },
   ];
 
   if (loading) return <div className="p-6 text-gray-400 text-sm">Loading…</div>;
