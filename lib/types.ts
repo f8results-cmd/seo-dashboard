@@ -62,6 +62,7 @@ export interface Client {
   review_rating: number | null;
   auto_respond_reviews: boolean;
   gbp_location_name: string | null;
+  logo_url: string | null;
   photos: ClientPhotos | null;
   created_at: string;
   // New columns

@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+import { Upload } from 'lucide-react';
 
 interface FormData {
   business_name: string;
@@ -25,6 +27,7 @@ interface FormData {
   ghl_location_id: string;
   ghl_api_key: string;
   ghl_webhook_url: string;
+  logo_url: string;
   google_maps_embed_url: string;
   google_place_id: string;
   google_tag_id: string;
@@ -47,7 +50,7 @@ const INITIAL: FormData = {
   google_maps_embed_url: '', google_place_id: '', google_tag_id: '',
   skip_website: false, auto_respond_reviews: false, blog_delivery: 'auto-publish',
   wp_url: '', wp_username: '', wp_app_password: '',
-  agency_notes: '',
+  agency_notes: '', logo_url: '',
 };
 
 const AU_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
@@ -62,9 +65,26 @@ export default function NewClientPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [newClientId, setNewClientId] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+
+  const supabase = createClient();
 
   function update(field: keyof FormData, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleLogoUpload(file: File) {
+    setLogoUploading(true);
+    const ext = file.name.split('.').pop() ?? 'png';
+    const path = `client-photos/onboard-logos/${Date.now()}-logo.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from('client-photos')
+      .upload(path, file, { upsert: true });
+    if (!uploadError) {
+      const { data: { publicUrl } } = supabase.storage.from('client-photos').getPublicUrl(path);
+      update('logo_url', publicUrl);
+    }
+    setLogoUploading(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -253,6 +273,26 @@ export default function NewClientPage() {
                 <input type="color" value={form.brand_accent_color} onChange={(e) => update('brand_accent_color', e.target.value)} className="h-10 w-12 rounded border border-gray-200 cursor-pointer p-0.5 flex-shrink-0" />
                 <input type="text" value={form.brand_accent_color} onChange={(e) => update('brand_accent_color', e.target.value)} className={`${inputCls} flex-1`} placeholder="#E8622A" />
               </div>
+            </Field>
+            <Field label="Business Logo" hint="PNG, JPG, SVG — uploaded immediately on select" className="sm:col-span-2">
+              {form.logo_url ? (
+                <div className="flex items-center gap-4 mt-1">
+                  <div className="h-12 w-32 border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <img src={form.logo_url} alt="Logo preview" className="max-h-full max-w-full object-contain" />
+                  </div>
+                  <label className="flex items-center gap-1.5 text-sm text-[#E8622A] cursor-pointer hover:text-[#d05520]">
+                    <Upload className="w-4 h-4" />
+                    {logoUploading ? 'Uploading…' : 'Replace'}
+                    <input type="file" accept="image/png,image/jpeg,image/svg+xml" className="hidden" onChange={e => { if (e.target.files?.[0]) handleLogoUpload(e.target.files[0]); }} />
+                  </label>
+                </div>
+              ) : (
+                <label className={`flex items-center gap-2 cursor-pointer border border-dashed border-gray-300 rounded-lg px-4 py-3 hover:border-[#E8622A] transition-colors ${logoUploading ? 'opacity-60' : ''}`}>
+                  <Upload className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <span className="text-sm text-gray-500">{logoUploading ? 'Uploading…' : 'Upload business logo'}</span>
+                  <input type="file" accept="image/png,image/jpeg,image/svg+xml" className="hidden" disabled={logoUploading} onChange={e => { if (e.target.files?.[0]) handleLogoUpload(e.target.files[0]); }} />
+                </label>
+              )}
             </Field>
           </div>
         </Section>

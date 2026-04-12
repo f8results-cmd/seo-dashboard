@@ -12,6 +12,10 @@ interface PhotoEntry {
 }
 
 export default function PhotosTab({ client, onUpdate }: { client: Client; onUpdate?: () => void }) {
+  const [logoUrl, setLogoUrl] = useState<string | null>(client.logo_url ?? null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoMsg, setLogoMsg] = useState('');
+
   const [photos, setPhotos] = useState<PhotoEntry[]>(() => {
     const wd = client.website_data as Record<string, unknown> ?? {};
     return (wd.photo_gallery as PhotoEntry[]) ?? [];
@@ -22,6 +26,33 @@ export default function PhotosTab({ client, onUpdate }: { client: Client; onUpda
   const [msg, setMsg] = useState('');
 
   const supabase = createClient();
+
+  async function uploadLogo(file: File) {
+    setUploadingLogo(true);
+    setLogoMsg('');
+    const ext = file.name.split('.').pop() ?? 'png';
+    const path = `client-photos/${client.id}/logo.${ext}`;
+    const { error } = await supabase.storage
+      .from('client-photos')
+      .upload(path, file, { upsert: true });
+    if (error) {
+      setLogoMsg(`Upload failed: ${error.message}`);
+      setUploadingLogo(false);
+      return;
+    }
+    const { data: { publicUrl } } = supabase.storage.from('client-photos').getPublicUrl(path);
+    await supabase.from('clients').update({ logo_url: publicUrl }).eq('id', client.id);
+    setLogoUrl(publicUrl);
+    setLogoMsg('Logo saved.');
+    onUpdate?.();
+    setUploadingLogo(false);
+  }
+
+  async function removeLogo() {
+    await supabase.from('clients').update({ logo_url: null }).eq('id', client.id);
+    setLogoUrl(null);
+    onUpdate?.();
+  }
 
   async function uploadFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -68,6 +99,46 @@ export default function PhotosTab({ client, onUpdate }: { client: Client; onUpda
 
   return (
     <div className="p-6 space-y-6">
+
+      {/* Business Logo */}
+      <div className="border border-gray-200 rounded-xl p-5 space-y-4">
+        <h3 className="font-semibold text-gray-900 text-sm">Business Logo</h3>
+        {logoUrl ? (
+          <div className="flex items-center gap-4">
+            <div className="w-32 h-16 border border-gray-200 rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
+              <img src={logoUrl} alt="Business logo" className="max-w-full max-h-full object-contain" />
+            </div>
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm text-[#E8622A] cursor-pointer hover:text-[#d05520]">
+                <Upload className="w-4 h-4" />
+                Replace logo
+                <input type="file" accept="image/png,image/jpeg,image/svg+xml" className="hidden" onChange={e => { if (e.target.files?.[0]) uploadLogo(e.target.files[0]); }} />
+              </label>
+              <button onClick={removeLogo} className="flex items-center gap-2 text-sm text-gray-400 hover:text-red-500">
+                <Trash2 className="w-4 h-4" />
+                Remove logo
+              </button>
+            </div>
+          </div>
+        ) : (
+          <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl py-8 px-4 cursor-pointer hover:border-[#E8622A] transition-colors">
+            <Upload className="w-6 h-6 text-gray-300 mb-2" />
+            <span className="text-sm font-medium text-gray-500">
+              {uploadingLogo ? 'Uploading…' : 'Upload business logo'}
+            </span>
+            <span className="text-xs text-gray-400 mt-1">PNG, JPG, SVG</span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/svg+xml"
+              className="hidden"
+              onChange={e => { if (e.target.files?.[0]) uploadLogo(e.target.files[0]); }}
+            />
+          </label>
+        )}
+        {logoMsg && <p className={`text-xs ${logoMsg.includes('failed') ? 'text-red-500' : 'text-green-600'}`}>{logoMsg}</p>}
+      </div>
+
+      {/* Photo gallery */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
         <ImageIcon className="w-4 h-4 inline mr-1.5" />
         AI uses these photos when building the website. Upload high-quality images.

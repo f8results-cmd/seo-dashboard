@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
       ghl_webhook_url,
       google_maps_embed_url,
       google_tag_id,
+      logo_url,
       skip_website,
       auto_respond_reviews,
       blog_delivery,
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
         auto_respond_reviews: Boolean(auto_respond_reviews),
         blog_delivery: blog_delivery?.trim() || null,
         agency_notes: agency_notes?.trim() || null,
+        logo_url: logo_url?.trim() || null,
         status: 'pending',
       })
       .select('id, business_name')
