@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Play, RefreshCw, ChevronDown, ChevronRight, Check, AlertCircle, Loader2, Clock } from 'lucide-react';
+import { Play, RefreshCw, ChevronDown, ChevronRight, Loader2, X, RotateCcw } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { format, parseISO, formatDistanceStrict } from 'date-fns';
 import type { Client, Job } from '@/lib/types';
@@ -9,8 +9,8 @@ import type { Client, Job } from '@/lib/types';
 const RAILWAY_URL = process.env.NEXT_PUBLIC_RAILWAY_URL ?? '';
 
 const AGENT_ORDER = [
-  'research_agent','content_agent','design_agent','deploy_agent',
-  'suburb_agent','gbp_agent','citation_agent','report_agent',
+  'research_agent','content_agent','design_agent','suburb_agent',
+  'deploy_agent','gbp_agent','citation_agent','report_agent',
 ];
 const AGENT_LABELS: Record<string, string> = {
   research_agent: 'Research', content_agent: 'Content', design_agent: 'Design',
@@ -25,10 +25,12 @@ function JobRow({ job }: { job: Job }) {
     : null;
 
   const statusStyle: Record<string, string> = {
-    complete: 'bg-green-100 text-green-700',
-    error:    'bg-red-100 text-red-700',
-    running:  'bg-blue-100 text-blue-700',
-    pending:  'bg-gray-100 text-gray-500',
+    complete:   'bg-green-100 text-green-700',
+    error:      'bg-red-100 text-red-700',
+    running:    'bg-blue-100 text-blue-700',
+    pending:    'bg-gray-100 text-gray-500',
+    cancelled:  'bg-orange-100 text-orange-600',
+    skipped:    'bg-gray-100 text-gray-400',
   };
 
   return (
@@ -64,6 +66,8 @@ export default function PipelineTab({ client }: { client: Client }) {
   const [running, setRunning] = useState(false);
   const [msg, setMsg] = useState('');
   const [editing, setEditing] = useState<Record<string, string>>({});
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const supabase = createClient();
 
@@ -82,6 +86,7 @@ export default function PipelineTab({ client }: { client: Client }) {
   useEffect(() => { load(); }, [load]);
 
   const lastFailed = jobs.find(j => j.status === 'error');
+  const hasRunning = jobs.some(j => j.status === 'running');
 
   async function runPipeline() {
     setRunning(true); setMsg('');
@@ -110,6 +115,30 @@ export default function PipelineTab({ client }: { client: Client }) {
     setTimeout(load, 3000);
   }
 
+  async function cancelPipeline() {
+    setConfirmCancel(false);
+    setRunning(true); setMsg('');
+    try {
+      const res = await fetch(`${RAILWAY_URL}/cancel/${client.id}`, { method: 'POST' });
+      const json = await res.json();
+      setMsg(`Pipeline cancelled. ${json.jobs_cancelled ?? 0} job(s) stopped.`);
+    } catch { setMsg('Could not connect to Railway backend.'); }
+    setRunning(false);
+    setTimeout(load, 2000);
+  }
+
+  async function resetClient() {
+    setConfirmReset(false);
+    setRunning(true); setMsg('');
+    try {
+      const res = await fetch(`${RAILWAY_URL}/reset/${client.id}`, { method: 'POST' });
+      const json = await res.json();
+      setMsg(json.status === 'reset' ? 'Client reset. Ready for a fresh pipeline run.' : 'Reset failed.');
+    } catch { setMsg('Could not connect to Railway backend.'); }
+    setRunning(false);
+    setTimeout(load, 2000);
+  }
+
   async function saveField(field: string, value: string) {
     await supabase.from('clients').update({ [field]: value || null }).eq('id', client.id);
     setEditing(e => { const n = { ...e }; delete n[field]; return n; });
@@ -118,9 +147,6 @@ export default function PipelineTab({ client }: { client: Client }) {
   const fields = [
     { label: 'GHL Sub-account ID',  key: 'ghl_location_id',  value: client.ghl_location_id,  masked: false },
     { label: 'GHL Webhook URL',     key: 'ghl_webhook_url',  value: client.ghl_webhook_url,  masked: false },
-    { label: 'WordPress URL',       key: 'wp_url',           value: client.wp_url,           masked: false },
-    { label: 'WordPress Username',  key: 'wp_username',      value: client.wp_username,      masked: false },
-    { label: 'WP App Password',     key: 'wp_app_password',  value: client.wp_app_password,  masked: true  },
     { label: 'Live URL',            key: 'live_url',         value: client.live_url,         masked: false },
   ];
 
@@ -205,6 +231,38 @@ export default function PipelineTab({ client }: { client: Client }) {
             >
               <RefreshCw className="w-4 h-4" /> Retry Last Failed
             </button>
+          )}
+          {hasRunning && !confirmCancel && (
+            <button
+              onClick={() => setConfirmCancel(true)}
+              disabled={running}
+              className="flex items-center gap-2 border border-red-200 text-red-600 px-4 py-2.5 rounded-lg text-sm hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              <X className="w-4 h-4" /> Cancel Pipeline
+            </button>
+          )}
+          {confirmCancel && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+              <span className="text-sm text-red-700">Are you sure? This will stop the current pipeline run.</span>
+              <button onClick={cancelPipeline} className="text-sm font-medium text-red-600 hover:text-red-800">Yes, cancel</button>
+              <button onClick={() => setConfirmCancel(false)} className="text-sm text-gray-500 hover:text-gray-700">No</button>
+            </div>
+          )}
+          {!confirmReset && (
+            <button
+              onClick={() => setConfirmReset(true)}
+              disabled={running}
+              className="flex items-center gap-2 border border-gray-200 text-gray-500 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              <RotateCcw className="w-4 h-4" /> Reset Client
+            </button>
+          )}
+          {confirmReset && (
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+              <span className="text-sm text-amber-700">Reset live_url and github_repo? Pipeline can then run from scratch.</span>
+              <button onClick={resetClient} className="text-sm font-medium text-amber-700 hover:text-amber-900">Yes, reset</button>
+              <button onClick={() => setConfirmReset(false)} className="text-sm text-gray-500 hover:text-gray-700">No</button>
+            </div>
           )}
         </div>
         {msg && <p className="text-sm text-gray-600 mt-2">{msg}</p>}
