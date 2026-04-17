@@ -2,33 +2,61 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { healthColour } from '@/lib/health';
+import { formatNiche } from '@/lib/utils';
 import type { Client, ClientStatus } from '@/lib/types';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Phone, Mail } from 'lucide-react';
 
 const STATUS_OPTIONS: (ClientStatus | 'all')[] = ['all', 'active', 'pending', 'complete', 'inactive', 'error'];
 
 const STATUS_STYLES: Record<string, string> = {
   active:   'bg-green-100 text-green-700',
-  pending:  'bg-amber-100 text-amber-700',
+  pending:  'bg-gray-100 text-gray-500',
   running:  'bg-blue-100 text-blue-700',
   error:    'bg-red-100 text-red-700',
   failed:   'bg-red-100 text-red-700',
-  complete: 'bg-gray-100 text-gray-600',
+  complete: 'bg-blue-100 text-blue-700',
   inactive: 'bg-gray-100 text-gray-400',
 };
 
+interface TaskBadge {
+  overdue: number;
+  today: number;
+}
+
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter]   = useState<ClientStatus | 'all'>('all');
-  const [search, setSearch]   = useState('');
+  const router = useRouter();
+  const [clients, setClients]               = useState<Client[]>([]);
+  const [clientsWithJobs, setClientsWithJobs] = useState<Set<string>>(new Set());
+  const [taskBadges, setTaskBadges]         = useState<Map<string, TaskBadge>>(new Map());
+  const [loading, setLoading]               = useState(true);
+  const [filter, setFilter]                 = useState<ClientStatus | 'all'>('all');
+  const [search, setSearch]                 = useState('');
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.from('clients').select('*').order('business_name').then(({ data }) => {
-      setClients((data as Client[]) ?? []);
+    const today = new Date().toISOString().split('T')[0];
+
+    Promise.all([
+      supabase.from('clients').select('*').order('business_name'),
+      supabase.from('jobs').select('client_id').not('agent_name', 'eq', '_pipeline_failure'),
+      supabase.from('client_tasks').select('client_id, due_date').eq('completed', false).lte('due_date', today),
+    ]).then(([{ data: clientData }, { data: jobData }, { data: taskData }]) => {
+      setClients((clientData as Client[]) ?? []);
+      setClientsWithJobs(new Set((jobData ?? []).map((j: { client_id: string }) => j.client_id)));
+
+      const badges = new Map<string, TaskBadge>();
+      for (const t of (taskData ?? []) as { client_id: string; due_date: string }[]) {
+        if (!t.client_id) continue;
+        const b = badges.get(t.client_id) ?? { overdue: 0, today: 0 };
+        if (t.due_date === today) b.today++;
+        else b.overdue++;
+        badges.set(t.client_id, b);
+      }
+      setTaskBadges(badges);
+
       setLoading(false);
     });
   }, []);
@@ -119,49 +147,93 @@ export default function ClientsPage() {
         <div className="py-16 text-center text-sm text-gray-400">No clients match.</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {displayed.map((client, idx) => (
-            <Link
-              key={client.id}
-              href={`/agency/clients/${client.id}`}
-              prefetch={idx < 5}
-              className="bg-white rounded-xl border border-gray-200 p-5 hover:border-[#E8622A]/40 hover:shadow-sm transition-all group"
-            >
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-gray-900 truncate group-hover:text-[#E8622A] transition-colors">
-                    {client.business_name}
-                  </h3>
-                  {client.owner_name && (
-                    <p className="text-xs text-gray-400 mt-0.5 truncate">{client.owner_name}</p>
+          {displayed.map((client) => {
+            const badge = taskBadges.get(client.id);
+            return (
+              <div
+                key={client.id}
+                onClick={() => router.push(`/agency/clients/${client.id}`)}
+                className="bg-white rounded-xl border border-gray-200 p-5 hover:border-[#E8622A]/40 hover:shadow-sm transition-all group cursor-pointer"
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-gray-900 truncate group-hover:text-[#E8622A] transition-colors">
+                      {client.business_name}
+                    </h3>
+                    {client.owner_name && (
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{client.owner_name}</p>
+                    )}
+                  </div>
+                  {/* Health circle */}
+                  <span
+                    className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                    style={{ backgroundColor: healthColour(client.health_score ?? 0) }}
+                  >
+                    {client.health_score ?? 0}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap mb-3">
+                  {(() => {
+                    const displayStatus = clientsWithJobs.has(client.id) ? client.status : 'pending';
+                    return (
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium capitalize ${STATUS_STYLES[displayStatus] ?? 'bg-gray-100 text-gray-500'}`}>
+                        {displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)}
+                      </span>
+                    );
+                  })()}
+                  {client.niche && (
+                    <span className="text-xs bg-[#1a2744] text-white px-2.5 py-0.5 rounded-full">{formatNiche(client.niche)}</span>
+                  )}
+                  {/* Task badges */}
+                  {badge && badge.overdue > 0 && (
+                    <span className="text-xs bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full font-medium">
+                      {badge.overdue} overdue
+                    </span>
+                  )}
+                  {badge && badge.today > 0 && (
+                    <span className="text-xs bg-orange-100 text-orange-700 px-2.5 py-0.5 rounded-full font-medium">
+                      {badge.today} due today
+                    </span>
                   )}
                 </div>
-                {/* Health circle */}
-                <span
-                  className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                  style={{ backgroundColor: healthColour(client.health_score ?? 0) }}
-                >
-                  {client.health_score ?? 0}
-                </span>
-              </div>
 
-              <div className="flex items-center gap-2 flex-wrap mb-3">
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium capitalize ${STATUS_STYLES[client.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                  {client.status}
-                </span>
-                {client.niche && (
-                  <span className="text-xs bg-[#1a2744] text-white px-2.5 py-0.5 rounded-full">{client.niche}</span>
+                <div className="text-xs text-gray-400 space-y-0.5">
+                  {client.city && <p>{client.city}{client.state ? `, ${client.state}` : ''}</p>}
+                  {client.live_url && (
+                    <p className="truncate text-[#E8622A]">{client.live_url.replace(/^https?:\/\//, '')}</p>
+                  )}
+                  {!client.live_url && <p className="text-gray-300">No live site yet</p>}
+                </div>
+
+                {(client.phone || client.email) && (
+                  <div
+                    className="mt-2 pt-2 border-t border-gray-100 flex items-center gap-3 flex-wrap"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {client.phone && (
+                      <a
+                        href={`tel:${client.phone}`}
+                        className="text-xs text-gray-500 hover:text-[#E8622A] flex items-center gap-1 transition-colors"
+                      >
+                        <Phone className="w-3 h-3" />
+                        {client.phone}
+                      </a>
+                    )}
+                    {client.email && (
+                      <a
+                        href={`mailto:${client.email}?subject=Your website update from Figure8 Results`}
+                        className="text-xs text-gray-500 hover:text-[#E8622A] flex items-center gap-1 transition-colors"
+                      >
+                        <Mail className="w-3 h-3" />
+                        <span className="truncate max-w-[160px]">{client.email}</span>
+                      </a>
+                    )}
+                  </div>
                 )}
               </div>
-
-              <div className="text-xs text-gray-400 space-y-0.5">
-                {client.city && <p>{client.city}{client.state ? `, ${client.state}` : ''}</p>}
-                {client.live_url && (
-                  <p className="truncate text-[#E8622A]">{client.live_url.replace(/^https?:\/\//, '')}</p>
-                )}
-                {!client.live_url && <p className="text-gray-300">No live site yet</p>}
-              </div>
-            </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
