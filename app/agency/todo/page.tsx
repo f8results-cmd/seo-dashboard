@@ -23,6 +23,51 @@ interface TaskWithClient extends ClientTask {
   clients: { business_name: string; id: string } | null;
 }
 
+function TaskCard({
+  task,
+  toggle,
+  remove,
+  today,
+}: {
+  task: TaskWithClient;
+  toggle: (task: TaskWithClient) => void;
+  remove: (id: string) => void;
+  today: Date;
+}) {
+  const overdue = !task.completed && task.due_date && isBefore(parseISO(task.due_date), today);
+  return (
+    <div className={`flex items-start gap-3 p-4 rounded-lg border transition-colors ${
+      task.completed ? 'border-gray-100 bg-gray-50 opacity-60' : 'border-gray-200 bg-white'
+    }`}>
+      <span className={`w-1 self-stretch rounded-full flex-shrink-0 ${PRIORITY_BAR[task.priority] ?? 'bg-gray-200'}`} />
+      <button onClick={() => toggle(task)} className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-green-500 transition-colors">
+        {task.completed ? <CheckCircle className="w-5 h-5 text-green-400" /> : <Circle className="w-5 h-5" />}
+      </button>
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm font-medium ${task.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+          {task.description}
+        </p>
+        <div className="flex items-center gap-3 mt-1 flex-wrap">
+          {task.clients && (
+            <Link href={`/agency/clients/${task.clients.id}?tab=todo`} className="text-xs text-[#E8622A] hover:underline">
+              {task.clients.business_name}
+            </Link>
+          )}
+          <span className={`text-xs font-medium capitalize ${PRIORITY_LABEL[task.priority] ?? ''}`}>
+            {task.priority}
+          </span>
+          {task.due_date && (
+            <span className={`text-xs ${overdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+              {overdue ? 'Overdue · ' : ''}{format(parseISO(task.due_date), 'd MMM yyyy')}
+            </span>
+          )}
+        </div>
+      </div>
+      <button onClick={() => remove(task.id)} className="text-gray-300 hover:text-red-400 text-xs mt-0.5 flex-shrink-0">✕</button>
+    </div>
+  );
+}
+
 export default function TodoPage() {
   const [tasks, setTasks]       = useState<TaskWithClient[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -76,41 +121,6 @@ export default function TodoPage() {
 
   const open = tasks.filter(t => !t.completed);
   const done = tasks.filter(t => t.completed);
-
-  function TaskCard({ task }: { task: TaskWithClient }) {
-    const overdue = !task.completed && task.due_date && isBefore(parseISO(task.due_date), today);
-    return (
-      <div className={`flex items-start gap-3 p-4 rounded-lg border transition-colors ${
-        task.completed ? 'border-gray-100 bg-gray-50 opacity-60' : 'border-gray-200 bg-white'
-      }`}>
-        <span className={`w-1 self-stretch rounded-full flex-shrink-0 ${PRIORITY_BAR[task.priority] ?? 'bg-gray-200'}`} />
-        <button onClick={() => toggle(task)} className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-green-500 transition-colors">
-          {task.completed ? <CheckCircle className="w-5 h-5 text-green-400" /> : <Circle className="w-5 h-5" />}
-        </button>
-        <div className="flex-1 min-w-0">
-          <p className={`text-sm font-medium ${task.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-            {task.description}
-          </p>
-          <div className="flex items-center gap-3 mt-1 flex-wrap">
-            {task.clients && (
-              <Link href={`/agency/clients/${task.clients.id}?tab=todo`} className="text-xs text-[#E8622A] hover:underline">
-                {task.clients.business_name}
-              </Link>
-            )}
-            <span className={`text-xs font-medium capitalize ${PRIORITY_LABEL[task.priority] ?? ''}`}>
-              {task.priority}
-            </span>
-            {task.due_date && (
-              <span className={`text-xs ${overdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-                {overdue ? 'Overdue · ' : ''}{format(parseISO(task.due_date), 'd MMM yyyy')}
-              </span>
-            )}
-          </div>
-        </div>
-        <button onClick={() => remove(task.id)} className="text-gray-300 hover:text-red-400 text-xs mt-0.5 flex-shrink-0">✕</button>
-      </div>
-    );
-  }
 
   if (loading) return <div className="p-6 text-gray-400 text-sm">Loading…</div>;
 
@@ -170,7 +180,7 @@ export default function TodoPage() {
         {open.length === 0 && (
           <p className="text-sm text-gray-400 text-center py-8">No open tasks. Nice work!</p>
         )}
-        {open.map(task => <TaskCard key={task.id} task={task} />)}
+        {open.map(task => <TaskCard key={task.id} task={task} toggle={toggle} remove={remove} today={today} />)}
       </div>
 
       {/* Completed */}
@@ -185,7 +195,7 @@ export default function TodoPage() {
           </button>
           {showDone && (
             <div className="space-y-2">
-              {done.map(task => <TaskCard key={task.id} task={task} />)}
+              {done.map(task => <TaskCard key={task.id} task={task} toggle={toggle} remove={remove} today={today} />)}
             </div>
           )}
         </div>

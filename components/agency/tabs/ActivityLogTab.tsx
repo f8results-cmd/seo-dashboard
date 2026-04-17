@@ -37,6 +37,14 @@ type FeedItem = {
   status?: string;
 };
 
+function ItemIcon({ item }: { item: FeedItem }) {
+  if (item.type === 'note') return <FileText className="w-4 h-4 text-purple-500" />;
+  if (item.type === 'gbp_post') return <MapPin className="w-4 h-4 text-blue-500" />;
+  if (item.type === 'scheduled') return <Zap className="w-4 h-4 text-amber-500" />;
+  const Icon = AGENT_ICONS[item.label.toLowerCase().replace(' agent ran', '_agent')] ?? Zap;
+  return <Icon className="w-4 h-4 text-gray-500" />;
+}
+
 function statusBadge(status: string) {
   const map: Record<string, string> = {
     complete:  'bg-green-100 text-green-700',
@@ -128,14 +136,6 @@ export default function ActivityLogTab({ clientId }: { clientId: string }) {
     setNote('');
     setSaving(false);
     load();
-  }
-
-  function ItemIcon({ item }: { item: FeedItem }) {
-    if (item.type === 'note') return <FileText className="w-4 h-4 text-purple-500" />;
-    if (item.type === 'gbp_post') return <MapPin className="w-4 h-4 text-blue-500" />;
-    if (item.type === 'scheduled') return <Zap className="w-4 h-4 text-amber-500" />;
-    const Icon = AGENT_ICONS[item.label.toLowerCase().replace(' agent ran', '_agent')] ?? Zap;
-    return <Icon className="w-4 h-4 text-gray-500" />;
   }
 
   if (loading) return <div className="p-6 text-gray-400 text-sm">Loading…</div>;
