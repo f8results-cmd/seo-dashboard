@@ -13,6 +13,7 @@ import CitationsTab   from './tabs/CitationsTab';
 import RankTrackingTab from './tabs/RankTrackingTab';
 import PhotosTab      from './tabs/PhotosTab';
 import PipelineTab    from './tabs/PipelineTab';
+import CategoriesTab  from './tabs/CategoriesTab';
 
 interface Props {
   client: Client;
@@ -25,6 +26,7 @@ const TABS = [
   { id: 'friday',       label: 'Friday Update' },
   { id: 'gbp-setup',    label: 'GBP Setup' },
   { id: 'gbp-posts',    label: 'GBP Posts' },
+  { id: 'categories',   label: 'Categories' },
   { id: 'website',      label: 'Website' },
   { id: 'citations',    label: 'Citations' },
   { id: 'rank',         label: 'Rank Tracking' },
@@ -38,8 +40,9 @@ function renderTabContent(tabId: string, client: Client, onRefresh?: () => void)
     case 'activity':  return <ActivityLogTab clientId={client.id} />;
     case 'friday':    return <FridayUpdateTab client={client} />;
     case 'gbp-setup': return <GBPSetupTab client={client} />;
-    case 'gbp-posts': return <GBPPostsTab clientId={client.id} locationId={client.ghl_location_id ?? ''} />;
-    case 'website':   return <WebsiteTab client={client} />;
+    case 'gbp-posts':   return <GBPPostsTab clientId={client.id} locationId={client.ghl_location_id ?? ''} />;
+    case 'categories':  return <CategoriesTab client={client} />;
+    case 'website':     return <WebsiteTab client={client} />;
     case 'citations': return <CitationsTab client={client} />;
     case 'rank':      return <RankTrackingTab clientId={client.id} />;
     case 'photos':    return <PhotosTab client={client} onUpdate={onRefresh} />;
