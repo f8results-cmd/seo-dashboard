@@ -38,8 +38,8 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(true);
+function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden">
       <button
@@ -56,48 +56,135 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function GBPSetupTab({ client }: { client: Client }) {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+
+  // ── Secondary categories state ────────────────────────────────────────────
+  const [categories, setCategories] = useState<string[]>([]);
+  const [catsLoading, setCatsLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+  const [newName, setNewName] = useState('');
+  const [regenerating, setRegenerating] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<Record<string, boolean>>({});
+  const [regenError, setRegenError] = useState('');
+
+  useEffect(() => {
+    setMounted(true);
+    fetch(`/api/clients/${client.id}/categories`)
+      .then(r => r.json())
+      .then(data => {
+        setCategories(data.categories ?? []);
+        setCatsLoading(false);
+      })
+      .catch(() => setCatsLoading(false));
+  }, [client.id]);
+
   if (!mounted) return <GBPSetupSkeleton />;
 
+  // ── Read-only data from website_data ─────────────────────────────────────
   const wd = client.website_data as Record<string, unknown> ?? {};
-  const gbpCategories = wd.gbp_categories as { primary: string; secondary: string[] } | undefined;
   const gbpServices = wd.gbp_services as Array<{ name: string; description: string }> | undefined;
   const pages = wd.pages as Record<string, { body_html?: string; meta_description?: string }> | undefined;
   const homepage = pages?.homepage;
 
   const description = (homepage?.meta_description ?? client.agency_notes ?? '').slice(0, 750);
-  const primaryCat = gbpCategories?.primary ?? client.niche ?? '—';
-  const secondaryCats = gbpCategories?.secondary ?? [];
-
-  // Group services by category
-  const services = client.website_data
-    ? ((client.website_data as Record<string, unknown>).services as Array<{ title: string; parent_category: string; description?: string }> ?? [])
-    : [];
-
-  const servicesByCategory: Record<string, typeof services> = {};
-  for (const svc of services) {
-    const cat = svc.parent_category ?? 'General';
-    if (!servicesByCategory[cat]) servicesByCategory[cat] = [];
-    servicesByCategory[cat].push(svc);
-  }
+  const primaryCat = client.gbp_primary_category ?? client.niche ?? '—';
 
   const photoChecklist = [
-    { label: 'Logo (250×250px min)', done: !!client.photos?.logo },
-    { label: 'Cover photo (1080×608px)', done: !!client.photos?.cover },
+    { label: 'Logo (250×250px min)',        done: !!client.photos?.logo },
+    { label: 'Cover photo (1080×608px)',    done: !!client.photos?.cover },
     { label: 'Exterior / vehicle / equipment', done: !!client.photos?.exterior },
-    { label: 'Owner / team photo', done: !!client.photos?.owner },
-    { label: 'Work in progress #1', done: !!client.photos?.work1 },
-    { label: 'Work in progress #2', done: !!client.photos?.work2 },
-    { label: 'Before photo', done: !!client.photos?.before },
-    { label: 'After photo', done: !!client.photos?.after },
+    { label: 'Owner / team photo',          done: !!client.photos?.owner },
+    { label: 'Work in progress #1',         done: !!client.photos?.work1 },
+    { label: 'Work in progress #2',         done: !!client.photos?.work2 },
+    { label: 'Before photo',                done: !!client.photos?.before },
+    { label: 'After photo',                 done: !!client.photos?.after },
   ];
   const photosUploaded = photoChecklist.filter(p => p.done).length;
+
+  // ── Category helpers ──────────────────────────────────────────────────────
+
+  function move(index: number, direction: -1 | 1) {
+    const next = index + direction;
+    if (next < 0 || next >= categories.length) return;
+    const updated = [...categories];
+    [updated[index], updated[next]] = [updated[next], updated[index]];
+    setCategories(updated);
+    setDirty(true);
+  }
+
+  function removeCategory(index: number) {
+    setCategories(prev => prev.filter((_, i) => i !== index));
+    setDirty(true);
+  }
+
+  function addCategory() {
+    const trimmed = newName.trim();
+    if (!trimmed || categories.includes(trimmed)) { setNewName(''); return; }
+    setCategories(prev => [...prev, trimmed]);
+    setNewName('');
+    setDirty(true);
+  }
+
+  async function saveCategories() {
+    setSaving(true);
+    setSaveMsg('');
+    try {
+      const res = await fetch(`/api/clients/${client.id}/categories`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categories }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Save failed');
+      setDirty(false);
+      setSaveMsg('Saved');
+      setTimeout(() => setSaveMsg(''), 2500);
+    } catch (err: unknown) {
+      setSaveMsg(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function regenerate() {
+    setRegenerating(true);
+    setRegenError('');
+    setSuggestions([]);
+    setSelectedSuggestions({});
+    try {
+      const res = await fetch(`/api/clients/${client.id}/categories/regenerate`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? 'Regenerate failed');
+      const suggested: string[] = data.categories ?? [];
+      setSuggestions(suggested);
+      const init: Record<string, boolean> = {};
+      for (const s of suggested) init[s] = !categories.includes(s);
+      setSelectedSuggestions(init);
+    } catch (err: unknown) {
+      setRegenError(err instanceof Error ? err.message : 'Regenerate failed');
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  function applySuggestions() {
+    const chosen = suggestions.filter(s => selectedSuggestions[s]);
+    if (!chosen.length) return;
+    setCategories(chosen);
+    setSuggestions([]);
+    setSelectedSuggestions({});
+    setDirty(true);
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="p-6 space-y-4">
 
       {/* 1 — Categories */}
       <Section title="1. Categories">
+        {/* Primary */}
         <div>
           <p className="text-xs text-gray-500 mb-1">Primary Category</p>
           <div className="flex items-center gap-2">
@@ -105,18 +192,141 @@ export default function GBPSetupTab({ client }: { client: Client }) {
             <CopyBtn text={primaryCat} />
           </div>
         </div>
-        {secondaryCats.length > 0 && (
-          <div className="space-y-2">
+
+        {/* Secondary — interactive */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
             <p className="text-xs text-gray-500">Secondary Categories</p>
-            {secondaryCats.map((cat, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded px-3 py-1.5 flex-1">{cat}</span>
-                <CopyBtn text={cat} />
-              </div>
-            ))}
-            <CopyBtn text={[primaryCat, ...secondaryCats].join('\n')} />
+            <div className="flex items-center gap-2">
+              {dirty && (
+                <button
+                  onClick={saveCategories}
+                  disabled={saving}
+                  className="px-3 py-1 bg-[#E8622A] text-white text-xs font-medium rounded hover:bg-[#d05520] transition-colors disabled:opacity-60"
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              )}
+              {saveMsg && (
+                <span className={`text-xs font-medium ${saveMsg === 'Saved' ? 'text-green-600' : 'text-red-600'}`}>
+                  {saveMsg}
+                </span>
+              )}
+            </div>
           </div>
-        )}
+
+          {catsLoading ? (
+            <div className="space-y-1.5">
+              {[...Array(3)].map((_, i) => <div key={i} className="h-9 bg-gray-100 rounded animate-pulse" />)}
+            </div>
+          ) : categories.length === 0 ? (
+            <p className="text-xs text-gray-400 py-2">No secondary categories yet. Add below or use Regenerate.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {categories.map((cat, i) => (
+                <li key={`${cat}-${i}`} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded px-3 py-2">
+                  {/* Up/down */}
+                  <div className="flex flex-col gap-0 flex-shrink-0">
+                    <button type="button" onClick={() => move(i, -1)} disabled={i === 0}
+                      className="text-gray-300 hover:text-gray-600 disabled:opacity-20 disabled:cursor-not-allowed leading-none"
+                      aria-label="Move up">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button type="button" onClick={() => move(i, 1)} disabled={i === categories.length - 1}
+                      className="text-gray-300 hover:text-gray-600 disabled:opacity-20 disabled:cursor-not-allowed leading-none"
+                      aria-label="Move down">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                  <span className="text-xs text-gray-400 w-4 text-center flex-shrink-0">{i + 1}</span>
+                  <span className="flex-1 text-sm text-gray-800">{cat}</span>
+                  <CopyBtn text={cat} />
+                  <button type="button" onClick={() => removeCategory(i)}
+                    className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0 ml-1" aria-label="Remove">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Add */}
+          <div className="flex gap-2 mt-2">
+            <input
+              type="text"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
+              placeholder="Add category…"
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30"
+            />
+            <button type="button" onClick={addCategory} disabled={!newName.trim()}
+              className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded hover:bg-gray-200 transition-colors disabled:opacity-40">
+              Add
+            </button>
+          </div>
+
+          {/* Regenerate */}
+          <div className="mt-3 flex items-center justify-between">
+            <p className="text-xs text-gray-400">Ask Claude to suggest categories for this niche + location</p>
+            <button type="button" onClick={regenerate} disabled={regenerating}
+              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-medium rounded hover:border-gray-400 transition-colors disabled:opacity-60">
+              {regenerating && (
+                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+              {regenerating ? 'Generating…' : 'Regenerate'}
+            </button>
+          </div>
+
+          {regenError && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mt-2">{regenError}</p>
+          )}
+
+          {suggestions.length > 0 && (
+            <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-3 space-y-2">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Suggestions — select to use</p>
+              <ul className="space-y-1">
+                {suggestions.map(s => (
+                  <li key={s} className="flex items-center gap-2">
+                    <input type="checkbox" id={`sug-${s}`} checked={!!selectedSuggestions[s]}
+                      onChange={() => setSelectedSuggestions(prev => ({ ...prev, [s]: !prev[s] }))}
+                      className="accent-[#E8622A]" />
+                    <label htmlFor={`sug-${s}`} className="text-sm text-gray-800 cursor-pointer select-none">
+                      {s}
+                      {categories.includes(s) && <span className="ml-1 text-xs text-gray-400">(already in list)</span>}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={applySuggestions}
+                  disabled={!suggestions.some(s => selectedSuggestions[s])}
+                  className="px-3 py-1 bg-[#1a2744] text-white text-xs font-medium rounded hover:bg-[#243565] transition-colors disabled:opacity-40">
+                  Use selected
+                </button>
+                <button type="button" onClick={() => { setSuggestions([]); setSelectedSuggestions({}); }}
+                  className="px-3 py-1 text-gray-500 text-xs hover:text-gray-700 transition-colors">
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
+          {categories.length > 0 && !dirty && (
+            <div className="mt-2">
+              <CopyBtn text={[primaryCat, ...categories].join('\n')} />
+            </div>
+          )}
+        </div>
       </Section>
 
       {/* 2 — Business Description */}
