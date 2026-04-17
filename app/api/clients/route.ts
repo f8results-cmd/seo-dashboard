@@ -42,6 +42,11 @@ export async function POST(request: NextRequest) {
       webmaster_contact,
       can_make_changes,
       access_notes,
+      we_host_website,
+      hosting_platform,
+      hosting_cost_monthly,
+      hosting_included_in_plan,
+      external_hosting_location,
     } = body;
 
     if (!business_name || !email) {
@@ -89,6 +94,11 @@ export async function POST(request: NextRequest) {
         webmaster_contact: webmaster_contact?.trim() || null,
         can_make_changes: Boolean(can_make_changes),
         access_notes: access_notes?.trim() || null,
+        we_host_website: Boolean(we_host_website),
+        hosting_platform: hosting_platform?.trim() || null,
+        hosting_cost_monthly: hosting_cost_monthly ? parseFloat(String(hosting_cost_monthly)) : null,
+        hosting_included_in_plan: Boolean(hosting_included_in_plan),
+        external_hosting_location: external_hosting_location?.trim() || null,
         status: 'pending',
       })
       .select('id, business_name')

@@ -42,6 +42,12 @@ interface FormData {
   webmaster_contact: string;
   can_make_changes: boolean;
   access_notes: string;
+  // Hosting
+  we_host_website: boolean;
+  hosting_platform: string;
+  hosting_cost_monthly: string;
+  hosting_included_in_plan: boolean;
+  external_hosting_location: string;
 }
 
 const INITIAL: FormData = {
@@ -56,6 +62,8 @@ const INITIAL: FormData = {
   agency_notes: '', logo_url: '',
   manages_website: true, website_hosting: '', domain_registrar: '', domain_owner: 'client',
   webmaster_contact: '', can_make_changes: false, access_notes: '',
+  we_host_website: false, hosting_platform: '', hosting_cost_monthly: '',
+  hosting_included_in_plan: false, external_hosting_location: '',
 };
 
 const AU_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
@@ -411,6 +419,42 @@ export default function NewClientPage() {
                     placeholder="Login instructions, CMS type, any access caveats…"
                     className={`${inputCls} w-full`}
                   />
+                </Field>
+              </div>
+            )}
+          </div>
+        </Section>
+
+        {/* Hosting */}
+        <Section title="Hosting">
+          <div className="space-y-4">
+            <Toggle
+              label="Are we hosting their website?"
+              description="We own the hosting account for this client's site"
+              checked={form.we_host_website}
+              onChange={(v) => handleChange('we_host_website', v)}
+            />
+            {form.we_host_website ? (
+              <div className="space-y-4 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="Hosting platform">
+                    <input type="text" value={form.hosting_platform} onChange={(e) => handleChange('hosting_platform', e.target.value)} placeholder="e.g. Vercel, Netlify, Railway" className={inputCls} />
+                  </Field>
+                  <Field label="Hosting cost to us ($/mo)">
+                    <input type="number" min={0} step={0.01} value={form.hosting_cost_monthly} onChange={(e) => handleChange('hosting_cost_monthly', e.target.value)} placeholder="e.g. 20" className={inputCls} />
+                  </Field>
+                </div>
+                <Toggle
+                  label="Hosting included in their plan?"
+                  description="Cost is covered by their monthly retainer"
+                  checked={form.hosting_included_in_plan}
+                  onChange={(v) => handleChange('hosting_included_in_plan', v)}
+                />
+              </div>
+            ) : (
+              <div className="pt-1">
+                <Field label="Where is it hosted?">
+                  <input type="text" value={form.external_hosting_location} onChange={(e) => handleChange('external_hosting_location', e.target.value)} placeholder="e.g. GoDaddy, WP Engine, their own server" className={inputCls} />
                 </Field>
               </div>
             )}
