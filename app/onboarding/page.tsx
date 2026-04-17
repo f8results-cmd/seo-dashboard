@@ -20,7 +20,16 @@ interface FormData {
   brand_primary_color: string;
   brand_accent_color: string;
   ghl_location_id: string;
+  ghl_webhook_url: string;
   agency_notes: string;
+  // Website management
+  manages_website: boolean;
+  website_hosting: string;
+  domain_registrar: string;
+  domain_owner: string;
+  webmaster_contact: string;
+  can_make_changes: boolean;
+  access_notes: string;
 }
 
 const INITIAL: FormData = {
@@ -28,7 +37,9 @@ const INITIAL: FormData = {
   address: '', city: '', state: 'SA', niche: '',
   website_url: '', gbp_url: '', years_in_business: '',
   brand_primary_color: '#1B2B6B', brand_accent_color: '#E8622A',
-  ghl_location_id: '', agency_notes: '',
+  ghl_location_id: '', ghl_webhook_url: '', agency_notes: '',
+  manages_website: true, website_hosting: '', domain_registrar: '', domain_owner: 'client',
+  webmaster_contact: '', can_make_changes: false, access_notes: '',
 };
 
 export default function OnboardingPage() {
@@ -37,7 +48,7 @@ export default function OnboardingPage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  function update(field: keyof FormData, value: string) {
+  function update(field: keyof FormData, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
@@ -190,9 +201,76 @@ export default function OnboardingPage() {
 
           {/* GHL */}
           <Section title="GoHighLevel">
-            <Field label="GHL Location ID">
-              <input type="text" value={form.ghl_location_id} onChange={(e) => update('ghl_location_id', e.target.value)} placeholder="e.g. RIFIicGZ5P3b3kEfLh2c" className={inputCls} />
-            </Field>
+            <div className="space-y-4">
+              <Field label="GHL Location ID">
+                <input type="text" value={form.ghl_location_id} onChange={(e) => update('ghl_location_id', e.target.value)} placeholder="e.g. RIFIicGZ5P3b3kEfLh2c" className={inputCls} />
+              </Field>
+              <Field label="Lead Webhook URL" hint="Paste the GHL inbound webhook — contact form submissions POST here">
+                <input type="url" value={form.ghl_webhook_url} onChange={(e) => update('ghl_webhook_url', e.target.value)} placeholder="https://…" className={inputCls} />
+              </Field>
+            </div>
+          </Section>
+
+          {/* Website Management */}
+          <Section title="Website Management">
+            <div className="space-y-4">
+              <ToggleField
+                label="Do we manage their website?"
+                description="We handle hosting, deployment, and domain"
+                checked={form.manages_website}
+                onChange={(v) => update('manages_website', v)}
+              />
+              {form.manages_website ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <Field label="Website hosting">
+                    <input type="text" value={form.website_hosting} onChange={(e) => update('website_hosting', e.target.value)} placeholder="e.g. Vercel, WP Engine, GoDaddy" className={inputCls} />
+                  </Field>
+                  <Field label="Domain registrar">
+                    <input type="text" value={form.domain_registrar} onChange={(e) => update('domain_registrar', e.target.value)} placeholder="e.g. GoDaddy, Namecheap, Crazy Domains" className={inputCls} />
+                  </Field>
+                  <Field label="Who owns the domain?" className="sm:col-span-2">
+                    <div className="flex gap-6 mt-0.5">
+                      {(['client', 'us', 'transferring'] as const).map((opt) => (
+                        <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="domain_owner"
+                            value={opt}
+                            checked={form.domain_owner === opt}
+                            onChange={() => update('domain_owner', opt)}
+                            className="accent-[#1B2B6B]"
+                          />
+                          <span className="text-sm text-gray-700">
+                            {opt === 'us' ? 'Us' : opt === 'transferring' ? 'Transferring' : 'Client'}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </Field>
+                </div>
+              ) : (
+                <div className="space-y-4 pt-1">
+                  <Field label="Client's webmaster contact">
+                    <input type="text" value={form.webmaster_contact} onChange={(e) => update('webmaster_contact', e.target.value)} placeholder="Name / email of whoever manages their site" className={inputCls} />
+                  </Field>
+                  <ToggleField
+                    label="Can we make changes?"
+                    description="We have access to push updates to their site"
+                    checked={form.can_make_changes}
+                    onChange={(v) => update('can_make_changes', v)}
+                  />
+                  <Field label="Access notes">
+                    <textarea
+                      rows={3}
+                      value={form.access_notes}
+                      onChange={(e) => update('access_notes', e.target.value)}
+                      placeholder="Login instructions, CMS type, any access caveats…"
+                      className={`${inputCls} w-full`}
+                    />
+                  </Field>
+                </div>
+              )}
+            </div>
           </Section>
 
           {/* Notes */}
@@ -236,8 +314,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Field({ label, required, className, children }: {
-  label: string; required?: boolean; className?: string; children: React.ReactNode;
+function Field({ label, required, hint, className, children }: {
+  label: string; required?: boolean; hint?: string; className?: string; children: React.ReactNode;
 }) {
   return (
     <div className={className}>
@@ -245,6 +323,27 @@ function Field({ label, required, className, children }: {
         {label}{required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
       {children}
+      {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+function ToggleField({ label, description, checked, onChange }: {
+  label: string; description: string; checked: boolean; onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-800">{label}</p>
+        <p className="text-xs text-gray-500">{description}</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${checked ? 'bg-[#1B2B6B]' : 'bg-gray-200'}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
+      </button>
     </div>
   );
 }

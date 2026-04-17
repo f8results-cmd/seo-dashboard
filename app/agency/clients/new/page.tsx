@@ -29,12 +29,19 @@ interface FormData {
   ghl_webhook_url: string;
   logo_url: string;
   google_maps_embed_url: string;
-  google_place_id: string;
   google_tag_id: string;
   skip_website: boolean;
   auto_respond_reviews: boolean;
   blog_delivery: string;
   agency_notes: string;
+  // Website management
+  manages_website: boolean;
+  website_hosting: string;
+  domain_registrar: string;
+  domain_owner: string;
+  webmaster_contact: string;
+  can_make_changes: boolean;
+  access_notes: string;
 }
 
 const INITIAL: FormData = {
@@ -44,9 +51,11 @@ const INITIAL: FormData = {
   years_in_business: '', review_count: '', review_rating: '',
   brand_primary_color: '#1B2B6B', brand_accent_color: '#E8622A',
   ghl_location_id: '', ghl_api_key: '', ghl_webhook_url: '',
-  google_maps_embed_url: '', google_place_id: '', google_tag_id: '',
+  google_maps_embed_url: '', google_tag_id: '',
   skip_website: false, auto_respond_reviews: false, blog_delivery: 'auto-publish',
   agency_notes: '', logo_url: '',
+  manages_website: true, website_hosting: '', domain_registrar: '', domain_owner: 'client',
+  webmaster_contact: '', can_make_changes: false, access_notes: '',
 };
 
 const AU_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
@@ -229,9 +238,6 @@ export default function NewClientPage() {
             <Field label="GBP Location Name" hint="Format: accounts/{id}/locations/{id}" className="sm:col-span-2">
               <input type="text" value={form.gbp_location_name} onChange={(e) => handleChange('gbp_location_name', e.target.value)} placeholder="accounts/1234/locations/5678" className={inputCls} />
             </Field>
-            <Field label="Google Place ID" hint="Find this in the Google Maps URL for their business">
-              <input type="text" value={form.google_place_id} onChange={(e) => handleChange('google_place_id', e.target.value)} placeholder="ChIJ…" className={inputCls} />
-            </Field>
             <Field label="Google Tag ID">
               <input type="text" value={form.google_tag_id} onChange={(e) => handleChange('google_tag_id', e.target.value)} placeholder="G-XXXXXXXXXX" className={inputCls} />
             </Field>
@@ -288,7 +294,7 @@ export default function NewClientPage() {
             <Field label="GHL API Key">
               <input type="password" value={form.ghl_api_key} onChange={(e) => handleChange('ghl_api_key', e.target.value)} className={inputCls} />
             </Field>
-            <Field label="GHL Webhook URL" hint="Used for GBP post scheduling via GoHighLevel" className="sm:col-span-2">
+            <Field label="Lead Webhook URL" hint="Paste the GHL inbound webhook for this client — contact form submissions POST here" className="sm:col-span-2">
               <input type="url" value={form.ghl_webhook_url} onChange={(e) => handleChange('ghl_webhook_url', e.target.value)} placeholder="https://…" className={inputCls} />
             </Field>
           </div>
@@ -344,6 +350,70 @@ export default function NewClientPage() {
               checked={form.auto_respond_reviews}
               onChange={(v) => handleChange('auto_respond_reviews', v)}
             />
+          </div>
+        </Section>
+
+        {/* Website Management */}
+        <Section title="Website Management">
+          <div className="space-y-4">
+            <Toggle
+              label="Do we manage their website?"
+              description="We handle hosting, deployment, and domain for this client"
+              checked={form.manages_website}
+              onChange={(v) => handleChange('manages_website', v)}
+            />
+            {form.manages_website ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <Field label="Website hosting">
+                  <input type="text" value={form.website_hosting} onChange={(e) => handleChange('website_hosting', e.target.value)} placeholder="e.g. Vercel, WP Engine, GoDaddy" className={inputCls} />
+                </Field>
+                <Field label="Domain registrar">
+                  <input type="text" value={form.domain_registrar} onChange={(e) => handleChange('domain_registrar', e.target.value)} placeholder="e.g. GoDaddy, Namecheap, Crazy Domains" className={inputCls} />
+                </Field>
+                <Field label="Who owns the domain?" className="sm:col-span-2">
+                  <div className="flex gap-6 mt-0.5">
+                    {(['client', 'us', 'transferring'] as const).map((opt) => (
+                      <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="domain_owner"
+                          value={opt}
+                          checked={form.domain_owner === opt}
+                          onChange={() => handleChange('domain_owner', opt)}
+                          className="accent-[#1B2B6B]"
+                        />
+                        <span className="text-sm text-gray-700 capitalize">
+                          {opt === 'us' ? 'Us' : opt === 'transferring' ? 'Transferring' : 'Client'}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+              </div>
+            ) : (
+              <div className="space-y-4 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="Client's webmaster contact" className="sm:col-span-2">
+                    <input type="text" value={form.webmaster_contact} onChange={(e) => handleChange('webmaster_contact', e.target.value)} placeholder="Name / email of whoever manages their site" className={inputCls} />
+                  </Field>
+                </div>
+                <Toggle
+                  label="Can we make changes?"
+                  description="We have access to push updates to their site"
+                  checked={form.can_make_changes}
+                  onChange={(v) => handleChange('can_make_changes', v)}
+                />
+                <Field label="Access notes">
+                  <textarea
+                    rows={3}
+                    value={form.access_notes}
+                    onChange={(e) => handleChange('access_notes', e.target.value)}
+                    placeholder="Login instructions, CMS type, any access caveats…"
+                    className={`${inputCls} w-full`}
+                  />
+                </Field>
+              </div>
+            )}
           </div>
         </Section>
 

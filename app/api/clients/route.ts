@@ -35,6 +35,13 @@ export async function POST(request: NextRequest) {
       auto_respond_reviews,
       blog_delivery,
       agency_notes,
+      manages_website,
+      website_hosting,
+      domain_registrar,
+      domain_owner,
+      webmaster_contact,
+      can_make_changes,
+      access_notes,
     } = body;
 
     if (!business_name || !email) {
@@ -75,6 +82,13 @@ export async function POST(request: NextRequest) {
         blog_delivery: blog_delivery?.trim() || null,
         agency_notes: agency_notes?.trim() || null,
         logo_url: logo_url?.trim() || null,
+        manages_website: manages_website !== undefined ? Boolean(manages_website) : true,
+        website_hosting: website_hosting?.trim() || null,
+        domain_registrar: domain_registrar?.trim() || null,
+        domain_owner: domain_owner?.trim() || null,
+        webmaster_contact: webmaster_contact?.trim() || null,
+        can_make_changes: Boolean(can_make_changes),
+        access_notes: access_notes?.trim() || null,
         status: 'pending',
       })
       .select('id, business_name')
