@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
       hosting_cost_monthly,
       hosting_included_in_plan,
       external_hosting_location,
+      use_fallback_images,
     } = body;
 
     if (!business_name || !email) {
@@ -99,6 +100,7 @@ export async function POST(request: NextRequest) {
         hosting_cost_monthly: hosting_cost_monthly ? parseFloat(String(hosting_cost_monthly)) : null,
         hosting_included_in_plan: Boolean(hosting_included_in_plan),
         external_hosting_location: external_hosting_location?.trim() || null,
+        use_fallback_images: use_fallback_images !== false,
         status: 'pending',
       })
       .select('id, business_name')
