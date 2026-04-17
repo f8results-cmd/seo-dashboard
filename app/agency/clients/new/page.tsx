@@ -34,9 +34,6 @@ interface FormData {
   skip_website: boolean;
   auto_respond_reviews: boolean;
   blog_delivery: string;
-  wp_url: string;
-  wp_username: string;
-  wp_app_password: string;
   agency_notes: string;
 }
 
@@ -49,16 +46,10 @@ const INITIAL: FormData = {
   ghl_location_id: '', ghl_api_key: '', ghl_webhook_url: '',
   google_maps_embed_url: '', google_place_id: '', google_tag_id: '',
   skip_website: false, auto_respond_reviews: false, blog_delivery: 'auto-publish',
-  wp_url: '', wp_username: '', wp_app_password: '',
   agency_notes: '', logo_url: '',
 };
 
 const AU_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
-const NICHES = [
-  'plumber', 'electrician', 'window cleaning', 'automotive',
-  'cleaning', 'landscaping', 'painter', 'carpenter', 'mechanic',
-  'dentist', 'physio', 'restaurant', 'retail', 'other',
-];
 
 export default function NewClientPage() {
   const [form, setForm] = useState<FormData>(INITIAL);
@@ -69,20 +60,20 @@ export default function NewClientPage() {
 
   const supabase = createClient();
 
-  function update(field: keyof FormData, value: string | boolean) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  }
+  const handleChange = (field: string, value: string | boolean) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
 
   async function handleLogoUpload(file: File) {
     setLogoUploading(true);
     const ext = file.name.split('.').pop() ?? 'png';
-    const path = `client-photos/onboard-logos/${Date.now()}-logo.${ext}`;
+    const path = `onboard-logos/${Date.now()}-logo.${ext}`;
     const { error: uploadError } = await supabase.storage
       .from('client-photos')
       .upload(path, file, { upsert: true });
     if (!uploadError) {
       const { data: { publicUrl } } = supabase.storage.from('client-photos').getPublicUrl(path);
-      update('logo_url', publicUrl);
+      handleChange('logo_url', publicUrl);
     }
     setLogoUploading(false);
   }
@@ -98,10 +89,6 @@ export default function NewClientPage() {
         years_in_business: form.years_in_business ? parseInt(form.years_in_business) : null,
         review_count: form.review_count ? parseInt(form.review_count) : null,
         review_rating: form.review_rating ? parseFloat(form.review_rating) : null,
-        // Clear WP credentials when website is not managed by F8
-        wp_url: form.skip_website ? null : (form.wp_url || null),
-        wp_username: form.skip_website ? null : (form.wp_username || null),
-        wp_app_password: form.skip_website ? null : (form.wp_app_password || null),
       };
 
       const res = await fetch('/api/clients', {
@@ -175,30 +162,25 @@ export default function NewClientPage() {
         <Section title="Business Information">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Business Name" required>
-              <input type="text" required value={form.business_name} onChange={(e) => update('business_name', e.target.value)} className={inputCls} />
+              <input type="text" required value={form.business_name} onChange={(e) => handleChange('business_name', e.target.value)} className={inputCls} />
             </Field>
             <Field label="Niche" required>
-              <select required value={form.niche} onChange={(e) => update('niche', e.target.value)} className={inputCls}>
-                <option value="">Select niche…</option>
-                {NICHES.map((n) => (
-                  <option key={n} value={n}>{n.charAt(0).toUpperCase() + n.slice(1)}</option>
-                ))}
-              </select>
+              <input type="text" required value={form.niche} onChange={(e) => handleChange('niche', e.target.value)} placeholder="e.g. plumber, window cleaner, electrician" className={inputCls} />
             </Field>
             <Field label="Owner Name">
-              <input type="text" value={form.owner_name} onChange={(e) => update('owner_name', e.target.value)} className={inputCls} />
+              <input type="text" value={form.owner_name} onChange={(e) => handleChange('owner_name', e.target.value)} className={inputCls} />
             </Field>
             <Field label="Years in Business">
-              <input type="number" min={0} value={form.years_in_business} onChange={(e) => update('years_in_business', e.target.value)} className={inputCls} />
+              <input type="number" min={0} value={form.years_in_business} onChange={(e) => handleChange('years_in_business', e.target.value)} className={inputCls} />
             </Field>
             <Field label="Review Count">
-              <input type="number" min={0} value={form.review_count} onChange={(e) => update('review_count', e.target.value)} placeholder="e.g. 47" className={inputCls} />
+              <input type="number" min={0} value={form.review_count} onChange={(e) => handleChange('review_count', e.target.value)} placeholder="e.g. 47" className={inputCls} />
             </Field>
             <Field label="Review Rating">
-              <input type="number" min={1} max={5} step={0.1} value={form.review_rating} onChange={(e) => update('review_rating', e.target.value)} placeholder="e.g. 4.8" className={inputCls} />
+              <input type="number" min={1} max={5} step={0.1} value={form.review_rating} onChange={(e) => handleChange('review_rating', e.target.value)} placeholder="e.g. 4.8" className={inputCls} />
             </Field>
             <Field label="Tagline" className="sm:col-span-2">
-              <input type="text" value={form.tagline} onChange={(e) => update('tagline', e.target.value)} placeholder="Short tagline for the business" className={inputCls} />
+              <input type="text" value={form.tagline} onChange={(e) => handleChange('tagline', e.target.value)} placeholder="Short tagline for the business" className={inputCls} />
             </Field>
           </div>
         </Section>
@@ -207,10 +189,10 @@ export default function NewClientPage() {
         <Section title="Contact Details">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Email" required>
-              <input type="email" required value={form.email} onChange={(e) => update('email', e.target.value)} className={inputCls} />
+              <input type="email" required value={form.email} onChange={(e) => handleChange('email', e.target.value)} className={inputCls} />
             </Field>
             <Field label="Phone">
-              <input type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)} placeholder="04XX XXX XXX" className={inputCls} />
+              <input type="tel" value={form.phone} onChange={(e) => handleChange('phone', e.target.value)} placeholder="04XX XXX XXX" className={inputCls} />
             </Field>
           </div>
         </Section>
@@ -219,18 +201,18 @@ export default function NewClientPage() {
         <Section title="Location">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Street Address" className="sm:col-span-2">
-              <input type="text" value={form.address} onChange={(e) => update('address', e.target.value)} placeholder="Street address" className={inputCls} />
+              <input type="text" value={form.address} onChange={(e) => handleChange('address', e.target.value)} placeholder="Street address" className={inputCls} />
             </Field>
             <Field label="City">
-              <input type="text" value={form.city} onChange={(e) => update('city', e.target.value)} placeholder="e.g. Adelaide" className={inputCls} />
+              <input type="text" value={form.city} onChange={(e) => handleChange('city', e.target.value)} placeholder="e.g. Adelaide" className={inputCls} />
             </Field>
             <Field label="State">
-              <select value={form.state} onChange={(e) => update('state', e.target.value)} className={inputCls}>
+              <select value={form.state} onChange={(e) => handleChange('state', e.target.value)} className={inputCls}>
                 {AU_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </Field>
             <Field label="Postcode">
-              <input type="text" value={form.postcode} onChange={(e) => update('postcode', e.target.value)} placeholder="e.g. 5000" className={inputCls} />
+              <input type="text" value={form.postcode} onChange={(e) => handleChange('postcode', e.target.value)} placeholder="e.g. 5000" className={inputCls} />
             </Field>
           </div>
         </Section>
@@ -239,22 +221,22 @@ export default function NewClientPage() {
         <Section title="Online Presence">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Website URL">
-              <input type="url" value={form.website_url} onChange={(e) => update('website_url', e.target.value)} placeholder="https://" className={inputCls} />
+              <input type="url" value={form.website_url} onChange={(e) => handleChange('website_url', e.target.value)} placeholder="https://" className={inputCls} />
             </Field>
             <Field label="Google Business Profile URL">
-              <input type="url" value={form.gbp_url} onChange={(e) => update('gbp_url', e.target.value)} placeholder="https://maps.google.com/…" className={inputCls} />
+              <input type="url" value={form.gbp_url} onChange={(e) => handleChange('gbp_url', e.target.value)} placeholder="https://maps.google.com/…" className={inputCls} />
             </Field>
             <Field label="GBP Location Name" hint="Format: accounts/{id}/locations/{id}" className="sm:col-span-2">
-              <input type="text" value={form.gbp_location_name} onChange={(e) => update('gbp_location_name', e.target.value)} placeholder="accounts/1234/locations/5678" className={inputCls} />
+              <input type="text" value={form.gbp_location_name} onChange={(e) => handleChange('gbp_location_name', e.target.value)} placeholder="accounts/1234/locations/5678" className={inputCls} />
             </Field>
             <Field label="Google Place ID" hint="Find this in the Google Maps URL for their business">
-              <input type="text" value={form.google_place_id} onChange={(e) => update('google_place_id', e.target.value)} placeholder="ChIJ…" className={inputCls} />
+              <input type="text" value={form.google_place_id} onChange={(e) => handleChange('google_place_id', e.target.value)} placeholder="ChIJ…" className={inputCls} />
             </Field>
             <Field label="Google Tag ID">
-              <input type="text" value={form.google_tag_id} onChange={(e) => update('google_tag_id', e.target.value)} placeholder="G-XXXXXXXXXX" className={inputCls} />
+              <input type="text" value={form.google_tag_id} onChange={(e) => handleChange('google_tag_id', e.target.value)} placeholder="G-XXXXXXXXXX" className={inputCls} />
             </Field>
             <Field label="Google Maps Embed URL" className="sm:col-span-2">
-              <input type="text" value={form.google_maps_embed_url} onChange={(e) => update('google_maps_embed_url', e.target.value)} placeholder="https://www.google.com/maps/embed?pb=…" className={inputCls} />
+              <input type="text" value={form.google_maps_embed_url} onChange={(e) => handleChange('google_maps_embed_url', e.target.value)} placeholder="https://www.google.com/maps/embed?pb=…" className={inputCls} />
             </Field>
           </div>
         </Section>
@@ -264,14 +246,14 @@ export default function NewClientPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Primary Colour">
               <div className="flex gap-2">
-                <input type="color" value={form.brand_primary_color} onChange={(e) => update('brand_primary_color', e.target.value)} className="h-10 w-12 rounded border border-gray-200 cursor-pointer p-0.5 flex-shrink-0" />
-                <input type="text" value={form.brand_primary_color} onChange={(e) => update('brand_primary_color', e.target.value)} className={`${inputCls} flex-1`} placeholder="#1B2B6B" />
+                <input type="color" value={form.brand_primary_color} onChange={(e) => handleChange('brand_primary_color', e.target.value)} className="h-10 w-12 rounded border border-gray-200 cursor-pointer p-0.5 flex-shrink-0" />
+                <input type="text" value={form.brand_primary_color} onChange={(e) => handleChange('brand_primary_color', e.target.value)} className={`${inputCls} flex-1`} placeholder="#1B2B6B" />
               </div>
             </Field>
             <Field label="Accent Colour">
               <div className="flex gap-2">
-                <input type="color" value={form.brand_accent_color} onChange={(e) => update('brand_accent_color', e.target.value)} className="h-10 w-12 rounded border border-gray-200 cursor-pointer p-0.5 flex-shrink-0" />
-                <input type="text" value={form.brand_accent_color} onChange={(e) => update('brand_accent_color', e.target.value)} className={`${inputCls} flex-1`} placeholder="#E8622A" />
+                <input type="color" value={form.brand_accent_color} onChange={(e) => handleChange('brand_accent_color', e.target.value)} className="h-10 w-12 rounded border border-gray-200 cursor-pointer p-0.5 flex-shrink-0" />
+                <input type="text" value={form.brand_accent_color} onChange={(e) => handleChange('brand_accent_color', e.target.value)} className={`${inputCls} flex-1`} placeholder="#E8622A" />
               </div>
             </Field>
             <Field label="Business Logo" hint="PNG, JPG, SVG — uploaded immediately on select" className="sm:col-span-2">
@@ -301,13 +283,13 @@ export default function NewClientPage() {
         <Section title="GoHighLevel Integration">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="GHL Location ID">
-              <input type="text" value={form.ghl_location_id} onChange={(e) => update('ghl_location_id', e.target.value)} placeholder="e.g. RIFIicGZ5P3b3kEfLh2c" className={inputCls} />
+              <input type="text" value={form.ghl_location_id} onChange={(e) => handleChange('ghl_location_id', e.target.value)} placeholder="e.g. RIFIicGZ5P3b3kEfLh2c" className={inputCls} />
             </Field>
             <Field label="GHL API Key">
-              <input type="password" value={form.ghl_api_key} onChange={(e) => update('ghl_api_key', e.target.value)} className={inputCls} />
+              <input type="password" value={form.ghl_api_key} onChange={(e) => handleChange('ghl_api_key', e.target.value)} className={inputCls} />
             </Field>
             <Field label="GHL Webhook URL" hint="Used for GBP post scheduling via GoHighLevel" className="sm:col-span-2">
-              <input type="url" value={form.ghl_webhook_url} onChange={(e) => update('ghl_webhook_url', e.target.value)} placeholder="https://…" className={inputCls} />
+              <input type="url" value={form.ghl_webhook_url} onChange={(e) => handleChange('ghl_webhook_url', e.target.value)} placeholder="https://…" className={inputCls} />
             </Field>
           </div>
         </Section>
@@ -319,7 +301,7 @@ export default function NewClientPage() {
               label="Website managed by Figure8 Results"
               description="Turn off if the client manages their own website"
               checked={!form.skip_website}
-              onChange={(v) => update('skip_website', !v)}
+              onChange={(v) => handleChange('skip_website', !v)}
             />
             {!form.skip_website ? (
               <div className="pl-1 space-y-4">
@@ -332,7 +314,7 @@ export default function NewClientPage() {
                         name="blog_delivery"
                         value="auto-publish"
                         checked={form.blog_delivery === 'auto-publish'}
-                        onChange={() => update('blog_delivery', 'auto-publish')}
+                        onChange={() => handleChange('blog_delivery', 'auto-publish')}
                         className="accent-[#1B2B6B]"
                       />
                       <span className="text-sm text-gray-700">Auto-publish to website</span>
@@ -343,43 +325,11 @@ export default function NewClientPage() {
                         name="blog_delivery"
                         value="email"
                         checked={form.blog_delivery === 'email'}
-                        onChange={() => update('blog_delivery', 'email')}
+                        onChange={() => handleChange('blog_delivery', 'email')}
                         className="accent-[#1B2B6B]"
                       />
                       <span className="text-sm text-gray-700">Email for manual upload</span>
                     </label>
-                  </div>
-                </div>
-                <div className="border-t border-gray-100 pt-4 space-y-3">
-                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">WordPress Connection</p>
-                  <Field label="WordPress URL">
-                    <input
-                      type="url"
-                      value={form.wp_url}
-                      onChange={(e) => update('wp_url', e.target.value)}
-                      placeholder="https://yoursite.ghl-wordpress.com"
-                      className={inputCls}
-                    />
-                  </Field>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Field label="WordPress Username">
-                      <input
-                        type="text"
-                        value={form.wp_username}
-                        onChange={(e) => update('wp_username', e.target.value)}
-                        placeholder="admin"
-                        className={inputCls}
-                      />
-                    </Field>
-                    <Field label="WordPress App Password">
-                      <input
-                        type="password"
-                        value={form.wp_app_password}
-                        onChange={(e) => update('wp_app_password', e.target.value)}
-                        placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
-                        className={inputCls}
-                      />
-                    </Field>
                   </div>
                 </div>
               </div>
@@ -392,7 +342,7 @@ export default function NewClientPage() {
               label="Auto-respond to reviews"
               description="Automatically post AI-drafted responses to new reviews"
               checked={form.auto_respond_reviews}
-              onChange={(v) => update('auto_respond_reviews', v)}
+              onChange={(v) => handleChange('auto_respond_reviews', v)}
             />
           </div>
         </Section>
@@ -402,7 +352,7 @@ export default function NewClientPage() {
           <textarea
             rows={4}
             value={form.agency_notes}
-            onChange={(e) => update('agency_notes', e.target.value)}
+            onChange={(e) => handleChange('agency_notes', e.target.value)}
             placeholder="Any special requirements, context, or notes about this client…"
             className={`${inputCls} w-full`}
           />

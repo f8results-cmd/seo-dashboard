@@ -7,21 +7,6 @@ import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { Client } from '@/lib/types';
 
-interface NicheOption { key: string; label: string; }
-
-const FALLBACK_NICHES: NicheOption[] = [
-  { key: 'car_detailing',   label: 'Car Detailing' },
-  { key: 'ndis_provider',   label: 'NDIS / Disability Support Provider' },
-  { key: 'used_car_dealer', label: 'Used Car Dealer' },
-  { key: 'window_cleaning', label: 'Window Cleaning' },
-  { key: 'lawn_and_garden', label: 'Lawn & Garden / Landscaping' },
-  { key: 'mortgage_broker', label: 'Mortgage Broker' },
-  { key: 'real_estate',     label: 'Real Estate Agent' },
-  { key: 'plumber',         label: 'Plumber / Gas Fitter' },
-  { key: 'electrician',     label: 'Electrician' },
-  { key: 'cleaning',        label: 'Cleaning Service' },
-  { key: 'accountant',      label: 'Accountant / Bookkeeper' },
-];
 
 const STATUS_OPTIONS = ['pending', 'active', 'complete', 'error', 'inactive'] as const;
 const BLOG_DELIVERY_OPTIONS = ['ghl', 'email', 'none'] as const;
@@ -31,6 +16,8 @@ const cls = {
   label: 'block text-xs font-medium text-gray-600 mb-1',
   hint:  'text-xs text-gray-400 mt-1',
 };
+
+// All sub-components defined OUTSIDE the page component — avoids remounts on every render
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -149,38 +136,38 @@ const EMPTY: FormState = {
 
 function clientToForm(c: Client): FormState {
   return {
-    business_name:        c.business_name ?? '',
-    owner_name:           c.owner_name ?? '',
-    email:                c.email ?? '',
-    phone:                c.phone ?? '',
-    address:              c.address ?? '',
-    city:                 c.city ?? '',
-    state:                c.state ?? '',
-    postcode:             c.postcode ?? '',
-    niche:                c.niche ?? '',
-    years_in_business:    c.years_in_business?.toString() ?? '',
-    tagline:              c.tagline ?? '',
-    status:               c.status ?? 'pending',
-    website_url:          c.website_url ?? '',
-    live_url:             c.live_url ?? '',
-    gbp_url:              c.gbp_url ?? '',
-    gbp_location_name:    c.gbp_location_name ?? '',
-    google_place_id:      c.google_place_id ?? '',
+    business_name:         c.business_name ?? '',
+    owner_name:            c.owner_name ?? '',
+    email:                 c.email ?? '',
+    phone:                 c.phone ?? '',
+    address:               c.address ?? '',
+    city:                  c.city ?? '',
+    state:                 c.state ?? '',
+    postcode:              c.postcode ?? '',
+    niche:                 c.niche ?? '',
+    years_in_business:     c.years_in_business?.toString() ?? '',
+    tagline:               c.tagline ?? '',
+    status:                c.status ?? 'pending',
+    website_url:           c.website_url ?? '',
+    live_url:              c.live_url ?? '',
+    gbp_url:               c.gbp_url ?? '',
+    gbp_location_name:     c.gbp_location_name ?? '',
+    google_place_id:       c.google_place_id ?? '',
     google_maps_embed_url: c.google_maps_embed_url ?? '',
-    github_repo:          c.github_repo ?? '',
-    brand_primary_color:  c.brand_primary_color ?? '#1B2B6B',
-    brand_accent_color:   c.brand_accent_color ?? '#E8622A',
-    logo_url:             c.logo_url ?? '',
-    review_count:         c.review_count?.toString() ?? '',
-    review_rating:        c.review_rating?.toString() ?? '',
-    auto_respond_reviews: c.auto_respond_reviews ?? false,
-    ghl_location_id:      c.ghl_location_id ?? '',
-    ghl_api_key:          c.ghl_api_key ?? '',
-    ghl_webhook_url:      c.ghl_webhook_url ?? '',
-    google_tag_id:        c.google_tag_id ?? '',
-    skip_website:         c.skip_website ?? false,
-    blog_delivery:        c.blog_delivery ?? 'ghl',
-    agency_notes:         c.agency_notes ?? '',
+    github_repo:           c.github_repo ?? '',
+    brand_primary_color:   c.brand_primary_color ?? '#1B2B6B',
+    brand_accent_color:    c.brand_accent_color ?? '#E8622A',
+    logo_url:              c.logo_url ?? '',
+    review_count:          c.review_count?.toString() ?? '',
+    review_rating:         c.review_rating?.toString() ?? '',
+    auto_respond_reviews:  c.auto_respond_reviews ?? false,
+    ghl_location_id:       c.ghl_location_id ?? '',
+    ghl_api_key:           c.ghl_api_key ?? '',
+    ghl_webhook_url:       c.ghl_webhook_url ?? '',
+    google_tag_id:         c.google_tag_id ?? '',
+    skip_website:          c.skip_website ?? false,
+    blog_delivery:         c.blog_delivery ?? 'ghl',
+    agency_notes:          c.agency_notes ?? '',
   };
 }
 
@@ -192,18 +179,10 @@ export default function EditClientPage() {
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [toast, setToast]       = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [niches, setNiches]     = useState<NicheOption[]>(FALLBACK_NICHES);
   const [form, setForm]         = useState<FormState>(EMPTY);
   const [businessName, setBusinessName] = useState('');
 
   const supabase = createClient();
-
-  useEffect(() => {
-    fetch('/api/niche-keys')
-      .then(r => r.json())
-      .then(d => { if (Array.isArray(d.niches)) setNiches(d.niches); })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     supabase
@@ -223,46 +202,46 @@ export default function EditClientPage() {
       });
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function set<K extends keyof FormState>(field: K, value: FormState[K]) {
+  const handleChange = (field: string, value: string | boolean) => {
     setForm(prev => ({ ...prev, [field]: value }));
-  }
+  };
 
   async function save() {
     setSaving(true);
     try {
       const payload: Partial<Client> = {
-        business_name:        form.business_name || undefined,
-        owner_name:           form.owner_name || null,
-        email:                form.email || undefined,
-        phone:                form.phone || null,
-        address:              form.address || null,
-        city:                 form.city || null,
-        state:                form.state || null,
-        postcode:             form.postcode || null,
-        niche:                form.niche || null,
-        years_in_business:    form.years_in_business ? parseInt(form.years_in_business) : null,
-        tagline:              form.tagline || null,
-        status:               form.status as Client['status'],
-        website_url:          form.website_url || null,
-        live_url:             form.live_url || null,
-        gbp_url:              form.gbp_url || null,
-        gbp_location_name:    form.gbp_location_name || null,
-        google_place_id:      form.google_place_id || null,
+        business_name:         form.business_name || undefined,
+        owner_name:            form.owner_name || null,
+        email:                 form.email || undefined,
+        phone:                 form.phone || null,
+        address:               form.address || null,
+        city:                  form.city || null,
+        state:                 form.state || null,
+        postcode:              form.postcode || null,
+        niche:                 form.niche || null,
+        years_in_business:     form.years_in_business ? parseInt(form.years_in_business) : null,
+        tagline:               form.tagline || null,
+        status:                form.status as Client['status'],
+        website_url:           form.website_url || null,
+        live_url:              form.live_url || null,
+        gbp_url:               form.gbp_url || null,
+        gbp_location_name:     form.gbp_location_name || null,
+        google_place_id:       form.google_place_id || null,
         google_maps_embed_url: form.google_maps_embed_url || null,
-        github_repo:          form.github_repo || null,
-        brand_primary_color:  form.brand_primary_color || null,
-        brand_accent_color:   form.brand_accent_color || null,
-        logo_url:             form.logo_url || null,
-        review_count:         form.review_count ? parseInt(form.review_count) : null,
-        review_rating:        form.review_rating ? parseFloat(form.review_rating) : null,
-        auto_respond_reviews: form.auto_respond_reviews,
-        ghl_location_id:      form.ghl_location_id || null,
-        ghl_api_key:          form.ghl_api_key || null,
-        ghl_webhook_url:      form.ghl_webhook_url || null,
-        google_tag_id:        form.google_tag_id || null,
-        skip_website:         form.skip_website,
-        blog_delivery:        form.blog_delivery || null,
-        agency_notes:         form.agency_notes || null,
+        github_repo:           form.github_repo || null,
+        brand_primary_color:   form.brand_primary_color || null,
+        brand_accent_color:    form.brand_accent_color || null,
+        logo_url:              form.logo_url || null,
+        review_count:          form.review_count ? parseInt(form.review_count) : null,
+        review_rating:         form.review_rating ? parseFloat(form.review_rating) : null,
+        auto_respond_reviews:  form.auto_respond_reviews,
+        ghl_location_id:       form.ghl_location_id || null,
+        ghl_api_key:           form.ghl_api_key || null,
+        ghl_webhook_url:       form.ghl_webhook_url || null,
+        google_tag_id:         form.google_tag_id || null,
+        skip_website:          form.skip_website,
+        blog_delivery:         form.blog_delivery || null,
+        agency_notes:          form.agency_notes || null,
       };
 
       const res = await fetch(`/api/clients/${id}`, {
@@ -331,17 +310,17 @@ export default function EditClientPage() {
       <Section title="Business Details">
         <Field label="Business Name" required>
           <input className={cls.input} value={form.business_name}
-            onChange={e => set('business_name', e.target.value)} />
+            onChange={e => handleChange('business_name', e.target.value)} />
         </Field>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Owner Name">
             <input className={cls.input} value={form.owner_name}
-              onChange={e => set('owner_name', e.target.value)} />
+              onChange={e => handleChange('owner_name', e.target.value)} />
           </Field>
           <Field label="Status">
             <select className={cls.input} value={form.status}
-              onChange={e => set('status', e.target.value)}>
+              onChange={e => handleChange('status', e.target.value)}>
               {STATUS_OPTIONS.map(s => (
                 <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
               ))}
@@ -352,50 +331,48 @@ export default function EditClientPage() {
         <div className="grid grid-cols-2 gap-4">
           <Field label="Email" required>
             <input className={cls.input} type="email" value={form.email}
-              onChange={e => set('email', e.target.value)} />
+              onChange={e => handleChange('email', e.target.value)} />
           </Field>
           <Field label="Phone">
             <input className={cls.input} value={form.phone}
-              onChange={e => set('phone', e.target.value)} placeholder="+61 4XX XXX XXX" />
+              onChange={e => handleChange('phone', e.target.value)} placeholder="+61 4XX XXX XXX" />
           </Field>
         </div>
 
         <Field label="Address">
           <input className={cls.input} value={form.address}
-            onChange={e => set('address', e.target.value)} />
+            onChange={e => handleChange('address', e.target.value)} />
         </Field>
 
         <div className="grid grid-cols-3 gap-4">
           <Field label="City">
             <input className={cls.input} value={form.city}
-              onChange={e => set('city', e.target.value)} />
+              onChange={e => handleChange('city', e.target.value)} />
           </Field>
           <Field label="State">
             <input className={cls.input} value={form.state}
-              onChange={e => set('state', e.target.value)} placeholder="e.g. SA" />
+              onChange={e => handleChange('state', e.target.value)} placeholder="e.g. SA" />
           </Field>
           <Field label="Postcode">
             <input className={cls.input} value={form.postcode}
-              onChange={e => set('postcode', e.target.value)} placeholder="e.g. 5000" />
+              onChange={e => handleChange('postcode', e.target.value)} placeholder="e.g. 5000" />
           </Field>
         </div>
 
         <Field label="Niche">
-          <select className={cls.input} value={form.niche}
-            onChange={e => set('niche', e.target.value)}>
-            <option value="">— Select niche —</option>
-            {niches.map(n => <option key={n.key} value={n.key}>{n.label}</option>)}
-          </select>
+          <input className={cls.input} value={form.niche}
+            onChange={e => handleChange('niche', e.target.value)}
+            placeholder="e.g. plumber, window cleaner, electrician" />
         </Field>
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Years in Business">
             <input className={cls.input} type="number" min="0" value={form.years_in_business}
-              onChange={e => set('years_in_business', e.target.value)} />
+              onChange={e => handleChange('years_in_business', e.target.value)} />
           </Field>
           <Field label="Tagline">
             <input className={cls.input} value={form.tagline}
-              onChange={e => set('tagline', e.target.value)} />
+              onChange={e => handleChange('tagline', e.target.value)} />
           </Field>
         </div>
       </Section>
@@ -404,31 +381,31 @@ export default function EditClientPage() {
       <Section title="Online Presence">
         <Field label="Existing Website URL">
           <input className={cls.input} type="url" value={form.website_url}
-            onChange={e => set('website_url', e.target.value)} placeholder="https://example.com.au" />
+            onChange={e => handleChange('website_url', e.target.value)} placeholder="https://example.com.au" />
         </Field>
         <Field label="Live URL" hint="The deployed Figure8 site URL">
           <input className={cls.input} type="url" value={form.live_url}
-            onChange={e => set('live_url', e.target.value)} placeholder="https://clientsite.com" />
+            onChange={e => handleChange('live_url', e.target.value)} placeholder="https://clientsite.com" />
         </Field>
         <Field label="GitHub Repo" hint="Auto-set by deploy agent">
           <input className={cls.input} value={form.github_repo}
-            onChange={e => set('github_repo', e.target.value)} placeholder="f8results-cmd/client-slug" />
+            onChange={e => handleChange('github_repo', e.target.value)} placeholder="f8results-cmd/client-slug" />
         </Field>
         <Field label="Google Business Profile URL">
           <input className={cls.input} type="url" value={form.gbp_url}
-            onChange={e => set('gbp_url', e.target.value)} placeholder="https://business.google.com/..." />
+            onChange={e => handleChange('gbp_url', e.target.value)} placeholder="https://business.google.com/..." />
         </Field>
         <Field label="GBP Location Name" hint="Exact name as it appears in Google Business Profile">
           <input className={cls.input} value={form.gbp_location_name}
-            onChange={e => set('gbp_location_name', e.target.value)} />
+            onChange={e => handleChange('gbp_location_name', e.target.value)} />
         </Field>
         <Field label="Google Place ID">
           <input className={cls.input} value={form.google_place_id}
-            onChange={e => set('google_place_id', e.target.value)} placeholder="ChIJ..." />
+            onChange={e => handleChange('google_place_id', e.target.value)} placeholder="ChIJ..." />
         </Field>
         <Field label="Google Maps Embed URL" hint="Used for the embedded map on the website">
           <input className={cls.input} type="url" value={form.google_maps_embed_url}
-            onChange={e => set('google_maps_embed_url', e.target.value)} placeholder="https://www.google.com/maps/embed?pb=..." />
+            onChange={e => handleChange('google_maps_embed_url', e.target.value)} placeholder="https://www.google.com/maps/embed?pb=..." />
         </Field>
       </Section>
 
@@ -440,9 +417,9 @@ export default function EditClientPage() {
               <input type="color"
                 className="w-10 h-10 rounded border border-gray-200 cursor-pointer p-0.5 shrink-0"
                 value={form.brand_primary_color}
-                onChange={e => set('brand_primary_color', e.target.value)} />
+                onChange={e => handleChange('brand_primary_color', e.target.value)} />
               <input className={`${cls.input} font-mono`} value={form.brand_primary_color}
-                onChange={e => set('brand_primary_color', e.target.value)} placeholder="#1B2B6B" />
+                onChange={e => handleChange('brand_primary_color', e.target.value)} placeholder="#1B2B6B" />
             </div>
           </Field>
           <Field label="Accent Colour">
@@ -450,15 +427,15 @@ export default function EditClientPage() {
               <input type="color"
                 className="w-10 h-10 rounded border border-gray-200 cursor-pointer p-0.5 shrink-0"
                 value={form.brand_accent_color}
-                onChange={e => set('brand_accent_color', e.target.value)} />
+                onChange={e => handleChange('brand_accent_color', e.target.value)} />
               <input className={`${cls.input} font-mono`} value={form.brand_accent_color}
-                onChange={e => set('brand_accent_color', e.target.value)} placeholder="#E8622A" />
+                onChange={e => handleChange('brand_accent_color', e.target.value)} placeholder="#E8622A" />
             </div>
           </Field>
         </div>
         <Field label="Logo URL">
           <input className={cls.input} type="url" value={form.logo_url}
-            onChange={e => set('logo_url', e.target.value)} placeholder="https://..." />
+            onChange={e => handleChange('logo_url', e.target.value)} placeholder="https://..." />
           {form.logo_url && (
             <div className="mt-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -475,18 +452,18 @@ export default function EditClientPage() {
         <div className="grid grid-cols-2 gap-4">
           <Field label="Review Count">
             <input className={cls.input} type="number" min="0" value={form.review_count}
-              onChange={e => set('review_count', e.target.value)} placeholder="e.g. 47" />
+              onChange={e => handleChange('review_count', e.target.value)} placeholder="e.g. 47" />
           </Field>
           <Field label="Average Rating">
             <input className={cls.input} type="number" min="1" max="5" step="0.1" value={form.review_rating}
-              onChange={e => set('review_rating', e.target.value)} placeholder="e.g. 4.8" />
+              onChange={e => handleChange('review_rating', e.target.value)} placeholder="e.g. 4.8" />
           </Field>
         </div>
         <Toggle
           label="Auto-respond to reviews"
           description="Automatically generate AI responses for new Google reviews"
           checked={form.auto_respond_reviews}
-          onChange={v => set('auto_respond_reviews', v)}
+          onChange={v => handleChange('auto_respond_reviews', v)}
         />
       </Section>
 
@@ -495,20 +472,20 @@ export default function EditClientPage() {
         <div className="grid grid-cols-2 gap-4">
           <Field label="GHL Sub-account ID">
             <input className={cls.input} value={form.ghl_location_id}
-              onChange={e => set('ghl_location_id', e.target.value)} />
+              onChange={e => handleChange('ghl_location_id', e.target.value)} />
           </Field>
           <Field label="Google Tag ID">
             <input className={cls.input} value={form.google_tag_id}
-              onChange={e => set('google_tag_id', e.target.value)} placeholder="G-XXXXXXXXXX" />
+              onChange={e => handleChange('google_tag_id', e.target.value)} placeholder="G-XXXXXXXXXX" />
           </Field>
         </div>
         <Field label="GHL API Key">
           <input className={cls.input} type="password" value={form.ghl_api_key}
-            onChange={e => set('ghl_api_key', e.target.value)} placeholder="Bearer token" />
+            onChange={e => handleChange('ghl_api_key', e.target.value)} placeholder="Bearer token" />
         </Field>
         <Field label="GHL Webhook URL">
           <input className={cls.input} type="url" value={form.ghl_webhook_url}
-            onChange={e => set('ghl_webhook_url', e.target.value)} placeholder="https://..." />
+            onChange={e => handleChange('ghl_webhook_url', e.target.value)} placeholder="https://..." />
         </Field>
       </Section>
 
@@ -518,12 +495,12 @@ export default function EditClientPage() {
           label="Website managed by Figure8 Results"
           description="Turn off if the client manages their own website"
           checked={!form.skip_website}
-          onChange={v => set('skip_website', !v)}
+          onChange={v => handleChange('skip_website', !v)}
         />
 
         <Field label="Blog Delivery" hint="How blog posts are delivered to the client">
           <select className={cls.input} value={form.blog_delivery}
-            onChange={e => set('blog_delivery', e.target.value)}>
+            onChange={e => handleChange('blog_delivery', e.target.value)}>
             {BLOG_DELIVERY_OPTIONS.map(o => (
               <option key={o} value={o}>
                 {o === 'ghl' ? 'GoHighLevel (GHL)' : o === 'email' ? 'Email' : 'None'}
@@ -537,7 +514,7 @@ export default function EditClientPage() {
             className={`${cls.input} resize-none`}
             rows={8}
             value={form.agency_notes}
-            onChange={e => set('agency_notes', e.target.value)}
+            onChange={e => handleChange('agency_notes', e.target.value)}
             placeholder="Services offered, target keywords, service suburbs, years in business, local differentiators, brand voice, anything the pipeline needs to know…"
           />
           <div className="flex items-start justify-between gap-3 mt-1.5">

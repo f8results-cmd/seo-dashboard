@@ -2,10 +2,6 @@
 
 import { useState } from 'react';
 
-const NICHES = [
-  'plumber', 'electrician', 'window cleaning', 'automotive',
-  'cleaning', 'landscaping', 'other',
-];
 
 const AU_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
 
@@ -122,12 +118,7 @@ export default function OnboardingPage() {
                 <input type="text" required value={form.business_name} onChange={(e) => update('business_name', e.target.value)} className={inputCls} />
               </Field>
               <Field label="Niche" required>
-                <select required value={form.niche} onChange={(e) => update('niche', e.target.value)} className={inputCls}>
-                  <option value="">Select niche…</option>
-                  {NICHES.map((n) => (
-                    <option key={n} value={n}>{n.charAt(0).toUpperCase() + n.slice(1)}</option>
-                  ))}
-                </select>
+                <input type="text" required value={form.niche} onChange={(e) => update('niche', e.target.value)} placeholder="e.g. plumber, window cleaner, electrician" className={inputCls} />
               </Field>
               <Field label="Owner Name">
                 <input type="text" value={form.owner_name} onChange={(e) => update('owner_name', e.target.value)} className={inputCls} />
