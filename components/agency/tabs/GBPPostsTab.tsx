@@ -47,8 +47,8 @@ export default function GBPPostsTab({ clientId, locationId = '' }: { clientId: s
   const [loading, setLoading]     = useState(true);
   const [filter, setFilter]       = useState<PostStatus | 'all'>('all');
 
-  // selection
-  const [selected, setSelected]   = useState<Set<string>>(new Set());
+  // selection — plain object avoids Set iteration (TS downlevel compat)
+  const [selected, setSelected]   = useState<Record<string, boolean>>({});
 
   // edit modal
   const [editing, setEditing]     = useState<GbpPost | null>(null);
@@ -108,12 +108,12 @@ export default function GBPPostsTab({ clientId, locationId = '' }: { clientId: s
       body: JSON.stringify({ id }),
     });
     setPosts(prev => prev.filter(p => p.id !== id));
-    setSelected(prev => { const s = new Set(prev); s.delete(id); return s; });
+    setSelected(prev => { const s = { ...prev }; delete s[id]; return s; });
   }
 
   // ── Bulk DELETE ───────────────────────────────────────────────────────────
   async function bulkDelete() {
-    const ids = Array.from(selected).filter(id => filteredIds.includes(id));
+    const ids = filteredIds.filter(id => selected[id]);
     if (!ids.length || !confirm(`Delete ${ids.length} post${ids.length > 1 ? 's' : ''}?`)) return;
     await fetch(`/api/gbp-posts/${clientId}`, {
       method: 'DELETE',
@@ -121,21 +121,21 @@ export default function GBPPostsTab({ clientId, locationId = '' }: { clientId: s
       body: JSON.stringify({ ids }),
     });
     setPosts(prev => prev.filter(p => !ids.includes(p.id)));
-    setSelected(new Set());
+    setSelected({});
   }
 
   // ── Bulk mark posted ──────────────────────────────────────────────────────
   async function bulkMarkPosted() {
-    const ids = Array.from(selected).filter(id => filteredIds.includes(id));
+    const ids = filteredIds.filter(id => selected[id]);
     if (!ids.length) return;
     await Promise.all(ids.map(id => patchPost(id, { status: 'posted' })));
     setPosts(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'posted' } : p));
-    setSelected(new Set());
+    setSelected({});
   }
 
   // ── Bulk schedule ─────────────────────────────────────────────────────────
   async function confirmBulkSchedule() {
-    const ids = Array.from(selected).filter(id => filteredIds.includes(id));
+    const ids = filteredIds.filter(id => selected[id]);
     if (!ids.length || !bulkStart) return;
     setBulkSaving(true);
     const start = new Date(`${bulkStart}T${bulkTime}:00`);
@@ -148,7 +148,7 @@ export default function GBPPostsTab({ clientId, locationId = '' }: { clientId: s
     setBulkScheduling(false);
     setBulkStart('');
     setBulkSaving(false);
-    setSelected(new Set());
+    setSelected({});
   }
 
   // ── Bulk CSV export ───────────────────────────────────────────────────────
@@ -216,29 +216,33 @@ export default function GBPPostsTab({ clientId, locationId = '' }: { clientId: s
   }
 
   // ── Selection helpers ─────────────────────────────────────────────────────
-  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selected.has(id));
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => !!selected[id]);
 
   function toggleAll() {
     if (allFilteredSelected) {
       setSelected(prev => {
-        const s = new Set(prev);
-        filteredIds.forEach(id => s.delete(id));
+        const s = { ...prev };
+        filteredIds.forEach(id => { delete s[id]; });
         return s;
       });
     } else {
-      setSelected(prev => new Set([...prev, ...filteredIds]));
+      setSelected(prev => {
+        const s = { ...prev };
+        filteredIds.forEach(id => { s[id] = true; });
+        return s;
+      });
     }
   }
 
   function toggleOne(id: string) {
     setSelected(prev => {
-      const s = new Set(prev);
-      s.has(id) ? s.delete(id) : s.add(id);
+      const s = { ...prev };
+      s[id] ? delete s[id] : (s[id] = true);
       return s;
     });
   }
 
-  const selectionInFilter = filteredIds.filter(id => selected.has(id));
+  const selectionInFilter = filteredIds.filter(id => !!selected[id]);
   const selCount = selectionInFilter.length;
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
@@ -362,12 +366,12 @@ export default function GBPPostsTab({ clientId, locationId = '' }: { clientId: s
                 <tr
                   key={post.id}
                   onClick={() => openEdit(post)}
-                  className={`hover:bg-gray-50 cursor-pointer transition-colors ${selected.has(post.id) ? 'bg-blue-50' : ''}`}
+                  className={`hover:bg-gray-50 cursor-pointer transition-colors ${!!selected[post.id] ? 'bg-blue-50' : ''}`}
                 >
                   <td className="py-3 pr-2" onClick={e => e.stopPropagation()}>
                     <input
                       type="checkbox"
-                      checked={selected.has(post.id)}
+                      checked={!!selected[post.id]}
                       onChange={() => toggleOne(post.id)}
                       className="accent-[#1B2B6B] cursor-pointer"
                     />
