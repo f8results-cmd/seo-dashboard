@@ -113,7 +113,7 @@ export default function GBPPostsTab({ clientId, locationId = '' }: { clientId: s
 
   // ── Bulk DELETE ───────────────────────────────────────────────────────────
   async function bulkDelete() {
-    const ids = [...selected].filter(id => filteredIds.includes(id));
+    const ids = Array.from(selected).filter(id => filteredIds.includes(id));
     if (!ids.length || !confirm(`Delete ${ids.length} post${ids.length > 1 ? 's' : ''}?`)) return;
     await fetch(`/api/gbp-posts/${clientId}`, {
       method: 'DELETE',
@@ -126,7 +126,7 @@ export default function GBPPostsTab({ clientId, locationId = '' }: { clientId: s
 
   // ── Bulk mark posted ──────────────────────────────────────────────────────
   async function bulkMarkPosted() {
-    const ids = [...selected].filter(id => filteredIds.includes(id));
+    const ids = Array.from(selected).filter(id => filteredIds.includes(id));
     if (!ids.length) return;
     await Promise.all(ids.map(id => patchPost(id, { status: 'posted' })));
     setPosts(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'posted' } : p));
@@ -135,7 +135,7 @@ export default function GBPPostsTab({ clientId, locationId = '' }: { clientId: s
 
   // ── Bulk schedule ─────────────────────────────────────────────────────────
   async function confirmBulkSchedule() {
-    const ids = [...selected].filter(id => filteredIds.includes(id));
+    const ids = Array.from(selected).filter(id => filteredIds.includes(id));
     if (!ids.length || !bulkStart) return;
     setBulkSaving(true);
     const start = new Date(`${bulkStart}T${bulkTime}:00`);
