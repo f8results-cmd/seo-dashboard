@@ -35,7 +35,6 @@ export interface ClientPhotos {
 export interface OnboardingChecklist {
   ghl_created?:       boolean;
   gbp_connected?:     boolean;
-  wp_activated?:      boolean;
   first_update_sent?: boolean;
   // Staff delivery checklist (26 tasks)
   checklist?: Partial<Record<StaffChecklistKey, boolean>>;
@@ -44,9 +43,10 @@ export interface OnboardingChecklist {
 }
 
 export type JobStatus = 'pending' | 'running' | 'complete' | 'error';
-export type PostStatus = 'scheduled' | 'posted' | 'failed';
+export type PostStatus = 'pending' | 'scheduled' | 'posted' | 'failed';
 export type ReviewStatus = 'pending' | 'approved' | 'posted';
 export type TaskPriority = 'high' | 'medium' | 'low';
+export type TaskPhase    = 'gbp_setup' | 'website' | 'citations' | 'ongoing' | 'general';
 
 export interface Client {
   id: string;
@@ -88,10 +88,24 @@ export interface Client {
   logo_url: string | null;
   photos: ClientPhotos | null;
   created_at: string;
-  // New columns
+  // Onboarding / operational
   onboarding_checklist: OnboardingChecklist | null;
   last_friday_update: string | null;
   health_score: number;
+  // Website management
+  manages_website: boolean;
+  website_hosting: string | null;
+  domain_registrar: string | null;
+  domain_owner: string | null;
+  webmaster_contact: string | null;
+  can_make_changes: boolean;
+  access_notes: string | null;
+  // Hosting
+  we_host_website: boolean;
+  hosting_platform: string | null;
+  hosting_cost_monthly: number | null;
+  hosting_included_in_plan: boolean;
+  external_hosting_location: string | null;
 }
 
 export interface Job {
@@ -192,6 +206,7 @@ export interface ClientTask {
   description: string;
   due_date: string | null;
   priority: TaskPriority;
+  phase: TaskPhase;
   completed: boolean;
   created_at: string;
   // joined field
