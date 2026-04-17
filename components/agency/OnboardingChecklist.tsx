@@ -31,7 +31,6 @@ export default function OnboardingChecklist({ client, deliverables, gbpPostCount
     { label: 'Pipeline run',             key: undefined,            auto: true,  done: hasJob },
     { label: 'GBP connected in GHL',     key: 'gbp_connected',     auto: false, done: !!checklist.gbp_connected },
     { label: '52 posts scheduled',        key: undefined,            auto: true,  done: gbpPostCount >= 52 },
-    { label: 'WordPress activated',       key: 'wp_activated',      auto: false, done: !!checklist.wp_activated },
     { label: 'Photos uploaded',           key: undefined,            auto: true,  done: hasPhotos },
     { label: 'First client update sent',  key: 'first_update_sent', auto: false, done: !!checklist.first_update_sent },
   ];
