@@ -85,10 +85,11 @@ export default function GBPSetupTab({ client }: { client: Client }) {
   // ── Read-only data from website_data ─────────────────────────────────────
   const wd = client.website_data as Record<string, unknown> ?? {};
   const gbpServices = wd.gbp_services as Array<{ name: string; description: string }> | undefined;
-  const pages = wd.pages as Record<string, { body_html?: string; meta_description?: string }> | undefined;
-  const homepage = pages?.homepage;
+  const gbpGuide = wd.gbp_guide as Record<string, unknown> | undefined;
 
-  const description = (homepage?.meta_description ?? client.agency_notes ?? '').slice(0, 750);
+  // Use the agent-generated GBP description (stored at website_data.gbp_guide.description).
+  // Fallback chain: gbp_guide.description → agency_notes → empty (never homepage meta).
+  const description = ((gbpGuide?.description as string) ?? client.agency_notes ?? '').slice(0, 750);
   const primaryCat = client.gbp_primary_category ?? client.niche ?? '—';
 
   const photoChecklist = [
@@ -332,7 +333,7 @@ export default function GBPSetupTab({ client }: { client: Client }) {
       {/* 2 — Business Description */}
       <Section title="2. Business Description">
         <div className="relative">
-          <p className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded p-3 whitespace-pre-wrap">{description || 'No description yet — run content agent.'}</p>
+          <p className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded p-3 whitespace-pre-wrap">{description || 'No description yet — run GBP agent to generate.'}</p>
           <div className={`text-xs mt-1 ${description.length > 750 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
             {description.length} / 750 characters{description.length > 750 && ' — too long!'}
           </div>
