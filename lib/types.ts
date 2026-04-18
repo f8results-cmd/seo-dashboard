@@ -109,6 +109,13 @@ export interface Client {
   hosting_cost_monthly: number | null;
   hosting_included_in_plan: boolean;
   external_hosting_location: string | null;
+  // GBP posting schedule (competitor-researched)
+  gbp_posting_schedule: {
+    posts_per_week: number;
+    preferred_days: string[];
+    preferred_time: string;
+    reasoning: string;
+  } | null;
 }
 
 export interface Job {

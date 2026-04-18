@@ -11,6 +11,143 @@ const STATUS_STYLES: Record<PostStatus, string> = {
   failed:    'bg-red-100 text-red-700',
 };
 
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+interface PostingSchedule {
+  posts_per_week: number;
+  preferred_days: string[];
+  preferred_time: string;
+  reasoning: string;
+}
+
+function SchedulePanel({ clientId, initial }: { clientId: string; initial: PostingSchedule | null }) {
+  const defaultSchedule: PostingSchedule = {
+    posts_per_week: 1,
+    preferred_days: ['Wednesday'],
+    preferred_time: '09:00',
+    reasoning: '',
+  };
+  const [schedule, setSchedule] = useState<PostingSchedule>(initial ?? defaultSchedule);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft]     = useState<PostingSchedule>(schedule);
+  const [saving, setSaving]   = useState(false);
+
+  function openEdit() { setDraft({ ...schedule }); setEditing(true); }
+  function toggleDay(day: string) {
+    setDraft(prev => {
+      const has = prev.preferred_days.includes(day);
+      let days = has
+        ? prev.preferred_days.filter(d => d !== day)
+        : [...prev.preferred_days, day];
+      // Clamp to posts_per_week
+      if (days.length > prev.posts_per_week) days = days.slice(-prev.posts_per_week);
+      return { ...prev, preferred_days: days };
+    });
+  }
+
+  async function save() {
+    setSaving(true);
+    const res = await fetch(`/api/clients/${clientId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gbp_posting_schedule: draft }),
+    });
+    if (res.ok) { setSchedule(draft); setEditing(false); }
+    setSaving(false);
+  }
+
+  return (
+    <div className="border border-blue-100 rounded-lg bg-blue-50 p-4 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-medium text-blue-900 mb-1">Posting Schedule</p>
+          {editing ? (
+            <div className="space-y-3 mt-2">
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-blue-700 w-28">Posts per week</label>
+                <select
+                  value={draft.posts_per_week}
+                  onChange={e => setDraft(prev => ({ ...prev, posts_per_week: Number(e.target.value), preferred_days: prev.preferred_days.slice(0, Number(e.target.value)) }))}
+                  className="text-xs border border-blue-200 rounded px-2 py-1 bg-white"
+                >
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
+                </select>
+              </div>
+              <div className="flex items-start gap-3">
+                <label className="text-xs text-blue-700 w-28 mt-0.5">Preferred days</label>
+                <div className="flex flex-wrap gap-1">
+                  {DAYS_OF_WEEK.map(day => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleDay(day)}
+                      className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                        draft.preferred_days.includes(day)
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-100'
+                      }`}
+                    >
+                      {day.slice(0, 3)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-blue-700 w-28">Preferred time</label>
+                <input
+                  type="time"
+                  value={draft.preferred_time}
+                  onChange={e => setDraft(prev => ({ ...prev, preferred_time: e.target.value }))}
+                  className="text-xs border border-blue-200 rounded px-2 py-1 bg-white"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-blue-700 w-28">Reasoning</label>
+                <input
+                  type="text"
+                  value={draft.reasoning}
+                  onChange={e => setDraft(prev => ({ ...prev, reasoning: e.target.value }))}
+                  placeholder="Optional note"
+                  className="text-xs border border-blue-200 rounded px-2 py-1 bg-white flex-1"
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={save}
+                  disabled={saving || draft.preferred_days.length === 0}
+                  className="px-3 py-1 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  className="px-3 py-1 rounded text-xs font-medium bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="text-blue-700 space-y-0.5">
+              <p>{schedule.posts_per_week}x per week — {schedule.preferred_days.join(' & ')} at {schedule.preferred_time}</p>
+              {schedule.reasoning && <p className="text-xs text-blue-500 italic">{schedule.reasoning}</p>}
+            </div>
+          )}
+        </div>
+        {!editing && (
+          <button
+            onClick={openEdit}
+            className="shrink-0 px-2.5 py-1 rounded text-xs font-medium bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 transition-colors"
+          >
+            Edit
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function escapeCsvCell(value: string): string {
   const str = String(value ?? '');
   if (str.includes('"') || str.includes(',') || str.includes('\n')) {
@@ -19,7 +156,14 @@ function escapeCsvCell(value: string): string {
   return str;
 }
 
-function buildGhlCsv(posts: GbpPost[], client: Pick<Client, 'website_url'>): string {
+function getPostLink(client: Pick<Client, 'live_url' | 'website_url'>): string {
+  // Prefer live_url; fall back to website_url only if it's not a vercel.app URL
+  if (client.live_url && client.live_url.trim()) return client.live_url.trim();
+  if (client.website_url && !client.website_url.includes('vercel.app')) return client.website_url.trim();
+  return '';
+}
+
+function buildGhlCsv(posts: GbpPost[], client: Pick<Client, 'live_url' | 'website_url'>): string {
   // GHL Social Planner — Basic Format, CRLF line endings, no BOM
   // Headers must include parenthetical hints exactly as GHL requires
   const header = [
@@ -31,7 +175,7 @@ function buildGhlCsv(posts: GbpPost[], client: Pick<Client, 'website_url'>): str
     'videoUrls',
   ];
 
-  const link = client.website_url ?? '';
+  const link = getPostLink(client);
 
   const rows = posts.map((p) => {
     const dt     = p.scheduled_date ? parseISO(p.scheduled_date) : null;
@@ -285,6 +429,12 @@ export default function GBPPostsTab({ client }: { client: Client }) {
 
   return (
     <div className="p-6 space-y-4">
+
+      {/* ── Posting schedule ── */}
+      <SchedulePanel
+        clientId={clientId}
+        initial={client.gbp_posting_schedule ?? null}
+      />
 
       {/* ── Top bar ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
