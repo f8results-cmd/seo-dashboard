@@ -134,6 +134,8 @@ type FormState = {
   hosting_cost_monthly: string;
   hosting_included_in_plan: boolean;
   external_hosting_location: string;
+  // Content
+  inspiration_url: string;
 };
 
 const EMPTY: FormState = {
@@ -151,6 +153,7 @@ const EMPTY: FormState = {
   webmaster_contact: '', can_make_changes: false, access_notes: '',
   we_host_website: false, hosting_platform: '', hosting_cost_monthly: '',
   hosting_included_in_plan: false, external_hosting_location: '',
+  inspiration_url: '',
 };
 
 function clientToForm(c: Client): FormState {
@@ -200,6 +203,7 @@ function clientToForm(c: Client): FormState {
     hosting_cost_monthly:       c.hosting_cost_monthly?.toString() ?? '',
     hosting_included_in_plan:   c.hosting_included_in_plan ?? false,
     external_hosting_location:  c.external_hosting_location ?? '',
+    inspiration_url:             c.inspiration_url ?? '',
   };
 }
 
@@ -275,6 +279,7 @@ export default function EditClientPage() {
         skip_website:               form.skip_website,
         blog_delivery:              form.blog_delivery || null,
         agency_notes:               form.agency_notes || null,
+        inspiration_url:            form.inspiration_url || null,
         manages_website:            form.manages_website,
         website_hosting:            form.website_hosting || null,
         domain_registrar:           form.domain_registrar || null,
@@ -674,6 +679,19 @@ export default function EditClientPage() {
              )}
             <span className="text-xs text-gray-400 shrink-0">{notesLen} chars</span>
           </div>
+        </Field>
+
+        <Field
+          label="Inspiration URL"
+          hint="Optional: paste a URL whose writing tone/style content should match. We'll analyse voice only — never copy content."
+        >
+          <input
+            type="url"
+            className={cls.input}
+            value={form.inspiration_url}
+            onChange={e => handleChange('inspiration_url', e.target.value)}
+            placeholder="https://their-current-site.com.au — we'll match tone and style"
+          />
         </Field>
       </Section>
 

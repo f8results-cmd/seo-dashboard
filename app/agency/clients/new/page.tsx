@@ -34,6 +34,7 @@ interface FormData {
   auto_respond_reviews: boolean;
   blog_delivery: string;
   agency_notes: string;
+  inspiration_url: string;
   onboarding_date: string;
   // Website management
   manages_website: boolean;
@@ -62,7 +63,7 @@ const INITIAL: FormData = {
   ghl_location_id: '', ghl_api_key: '', ghl_webhook_url: '',
   google_maps_embed_url: '', google_tag_id: '',
   skip_website: false, auto_respond_reviews: false, blog_delivery: 'auto-publish',
-  agency_notes: '', logo_url: '', onboarding_date: '',
+  agency_notes: '', inspiration_url: '', logo_url: '', onboarding_date: '',
   manages_website: true, website_hosting: '', domain_registrar: '', domain_owner: 'client',
   webmaster_contact: '', can_make_changes: false, access_notes: '',
   we_host_website: false, hosting_platform: '', hosting_cost_monthly: '',
@@ -453,6 +454,19 @@ export default function NewClientPage() {
             placeholder="Any special requirements, context, or notes about this client…"
             className={`${inputCls} w-full`}
           />
+          <div className="mt-4">
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Inspiration URL <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <input
+              type="url"
+              value={form.inspiration_url}
+              onChange={(e) => handleChange('inspiration_url', e.target.value)}
+              placeholder="https://their-current-site.com.au — we'll match tone and style"
+              className={`${inputCls} w-full`}
+            />
+            <p className="text-xs text-gray-400 mt-1">Paste a URL whose writing voice content should match. We analyse tone only — never copy content.</p>
+          </div>
         </Section>
 
         {error && (

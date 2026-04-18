@@ -116,6 +116,8 @@ export interface Client {
     preferred_time: string;
     reasoning: string;
   } | null;
+  // Content voice matching
+  inspiration_url: string | null;
 }
 
 export interface Job {
