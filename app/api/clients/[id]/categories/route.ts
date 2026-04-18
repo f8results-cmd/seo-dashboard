@@ -12,25 +12,55 @@ function slugify(name: string): string {
 
 // GET /api/clients/[id]/categories
 // Returns the current category list for the client.
-// Source: clients.gbp_secondary_categories (canonical).
-// Falls back to names extracted from clients.website_data.gbp_category_pages.
+// Priority: clients.gbp_primary_category / gbp_secondary_categories (canonical columns,
+//   require migration 012_gbp_categories.sql) → website_data.category_research →
+//   website_data.gbp_category_pages names.
 export async function GET(_req: NextRequest, { params }: Params) {
   const supabase = createServiceClient();
-  const { data, error } = await supabase
+
+  // Try fetching the canonical columns; if they don't exist yet, fall back to website_data only.
+  let primaryCategory: string | null = null;
+  let secondaryCategories: string[] | null = null;
+  let websiteData: Record<string, unknown> | null = null;
+
+  const { data: fullData, error: fullError } = await supabase
     .from('clients')
     .select('gbp_secondary_categories, gbp_primary_category, website_data')
     .eq('id', params.id)
     .single();
 
-  if (error || !data) {
-    return NextResponse.json({ error: error?.message ?? 'Client not found' }, { status: 404 });
+  if (fullError && fullError.code === '42703') {
+    // Columns don't exist yet (pending migration 012) — fetch website_data only
+    const { data: wdData, error: wdError } = await supabase
+      .from('clients')
+      .select('website_data')
+      .eq('id', params.id)
+      .single();
+    if (wdError || !wdData) {
+      return NextResponse.json({ error: wdError?.message ?? 'Client not found' }, { status: 404 });
+    }
+    websiteData = wdData.website_data as Record<string, unknown> | null;
+  } else if (fullError || !fullData) {
+    return NextResponse.json({ error: fullError?.message ?? 'Client not found' }, { status: 404 });
+  } else {
+    primaryCategory = (fullData as any).gbp_primary_category ?? null;
+    secondaryCategories = (fullData as any).gbp_secondary_categories ?? null;
+    websiteData = fullData.website_data as Record<string, unknown> | null;
   }
 
-  let categories: string[] = data.gbp_secondary_categories ?? [];
+  let categories: string[] = secondaryCategories ?? [];
 
-  // Fallback: extract names from website_data.gbp_category_pages if column is empty
-  if (categories.length === 0 && data.website_data) {
-    const pages = (data.website_data as Record<string, unknown>).gbp_category_pages;
+  if (categories.length === 0 && websiteData) {
+    // Check website_data.category_research.secondary (written by CategoryResearchAgent)
+    const cr = (websiteData as Record<string, unknown>).category_research as Record<string, unknown> | undefined;
+    if (cr && Array.isArray(cr.secondary)) {
+      categories = (cr.secondary as string[]).filter(Boolean);
+    }
+  }
+
+  if (categories.length === 0 && websiteData) {
+    // Last fallback: extract names from website_data.gbp_category_pages
+    const pages = (websiteData as Record<string, unknown>).gbp_category_pages;
     if (Array.isArray(pages)) {
       categories = pages
         .map((p: Record<string, unknown>) => p.category_name as string)
@@ -38,9 +68,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
   }
 
+  // Primary category: column → website_data.category_research.primary
+  if (!primaryCategory && websiteData) {
+    const cr = (websiteData as Record<string, unknown>).category_research as Record<string, unknown> | undefined;
+    if (cr?.primary) primaryCategory = cr.primary as string;
+  }
+
   return NextResponse.json({
     categories,
-    gbp_primary_category: data.gbp_primary_category ?? null,
+    gbp_primary_category: primaryCategory,
   });
 }
 
@@ -80,7 +116,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   }
 
-  const updates: Record<string, unknown> = { gbp_secondary_categories: clean };
+  const updates: Record<string, unknown> = {};
 
   if (current?.website_data) {
     const wd = current.website_data as Record<string, unknown>;
