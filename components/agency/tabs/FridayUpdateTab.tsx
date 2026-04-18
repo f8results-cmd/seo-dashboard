@@ -8,34 +8,52 @@ import type { Client, FridayUpdate } from '@/lib/types';
 
 const RAILWAY_URL = process.env.NEXT_PUBLIC_RAILWAY_URL ?? '';
 
+interface WeekOption {
+  week_number: number;
+  week_label: string;
+  ends_on: string;
+}
+
 export default function FridayUpdateTab({ client }: { client: Client }) {
-  const [draft, setDraft] = useState('');
-  const [generating, setGenerating] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [history, setHistory] = useState<FridayUpdate[]>([]);
+  const [draft,       setDraft]      = useState('');
+  const [generating,  setGenerating] = useState(false);
+  const [saving,      setSaving]     = useState(false);
+  const [saved,       setSaved]      = useState(false);
+  const [history,     setHistory]    = useState<FridayUpdate[]>([]);
   const [modalUpdate, setModalUpdate] = useState<FridayUpdate | null>(null);
-  const [msg, setMsg] = useState('');
+  const [msg,         setMsg]        = useState('');
+  const [weekOptions, setWeekOptions] = useState<WeekOption[]>([]);
+  const [weekNumber,  setWeekNumber] = useState<number | ''>('');
+  const [userId,      setUserId]     = useState<string | null>(null);
 
   const supabase = createClient();
 
-  const loadHistory = useCallback(async () => {
-    const { data } = await supabase
-      .from('friday_updates')
-      .select('*')
-      .eq('client_id', client.id)
-      .not('sent_at', 'is', null)
-      .order('sent_at', { ascending: false });
-    setHistory((data ?? []) as FridayUpdate[]);
+  const loadData = useCallback(async () => {
+    const [{ data: histData }, { data: weeksData }, { data: { user } }] = await Promise.all([
+      supabase.from('friday_updates').select('*').eq('client_id', client.id).not('sent_at', 'is', null).order('sent_at', { ascending: false }),
+      supabase.from('client_rollout_weeks').select('week_number, week_label, ends_on').eq('client_id', client.id).order('week_number'),
+      supabase.auth.getUser(),
+    ]);
+    setHistory((histData ?? []) as FridayUpdate[]);
+    setWeekOptions((weeksData ?? []) as WeekOption[]);
+    setUserId(user?.id ?? null);
+
+    // Auto-select the current incomplete week (latest week with ends_on in the future)
+    if (weeksData && weeksData.length > 0 && !weekNumber) {
+      const today = new Date().toISOString().split('T')[0];
+      const current = (weeksData as WeekOption[]).find(w => w.ends_on >= today);
+      if (current) setWeekNumber(current.week_number);
+    }
   }, [client.id]);
 
-  useEffect(() => { loadHistory(); }, [loadHistory]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const lastSent = history[0] ?? null;
 
   async function generateDraft() {
+    if (!RAILWAY_URL) { setMsg('RAILWAY_URL not configured — write the update manually.'); return; }
     setGenerating(true);
-    setSent(false);
+    setSaved(false);
     setMsg('');
     try {
       const res = await fetch(`${RAILWAY_URL}/friday-update/${client.id}`, { method: 'POST' });
@@ -51,28 +69,26 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
     setGenerating(false);
   }
 
-  async function sendEmail() {
+  async function saveUpdate() {
     if (!draft.trim()) return;
-    setSending(true);
+    setSaving(true);
     setMsg('');
-    try {
-      const res = await fetch(`${RAILWAY_URL}/send-friday-update/${client.id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: draft }),
-      });
-      if (res.ok) {
-        setSent(true);
-        setDraft('');
-        loadHistory();
-      } else {
-        const json = await res.json().catch(() => ({}));
-        setMsg(json.detail ?? 'Email send failed.');
-      }
-    } catch {
-      setMsg('Could not send email.');
+    const { error } = await supabase.from('friday_updates').insert({
+      client_id:       client.id,
+      content:         draft.trim(),
+      sent_at:         new Date().toISOString(),
+      delivery_method: 'email',
+      week_number:     weekNumber || null,
+      sent_by_user_id: userId,
+    });
+    if (error) {
+      setMsg(`Failed to save: ${error.message}`);
+    } else {
+      setSaved(true);
+      setDraft('');
+      loadData();
     }
-    setSending(false);
+    setSaving(false);
   }
 
   return (
@@ -86,21 +102,40 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
       </div>
 
       {/* Sent confirmation */}
-      {sent && (
+      {saved && (
         <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700">
           <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-          Friday update sent successfully.
+          Friday update saved and marked sent.
         </div>
       )}
 
       {/* Draft area */}
-      {!sent && (
+      {!saved && (
         <div className="space-y-3">
+          {/* Week selector */}
+          {weekOptions.length > 0 && (
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-600 whitespace-nowrap">Rollout week:</label>
+              <select
+                value={weekNumber}
+                onChange={e => setWeekNumber(e.target.value ? Number(e.target.value) : '')}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30 bg-white"
+              >
+                <option value="">Not linked to a week</option>
+                {weekOptions.map(w => (
+                  <option key={w.week_number} value={w.week_number}>
+                    {w.week_label} (due {format(parseISO(w.ends_on), 'd MMM')})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <textarea
             value={draft}
             onChange={e => setDraft(e.target.value)}
             rows={12}
-            placeholder="Click 'Generate Draft' to pull this week's activity from the system…"
+            placeholder="Write the update here, or click 'Generate Draft' to pull this week's activity…"
             className="w-full border border-gray-200 rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30 font-mono resize-y"
           />
 
@@ -117,20 +152,24 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
             </button>
 
             <button
-              onClick={sendEmail}
-              disabled={!draft.trim() || sending}
+              onClick={saveUpdate}
+              disabled={!draft.trim() || saving}
               className="flex items-center gap-2 bg-[#E8622A] text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-[#d05520] transition-colors disabled:opacity-40"
             >
               <Send className="w-4 h-4" />
-              {sending ? 'Sending…' : 'Send Email'}
+              {saving ? 'Saving…' : 'Mark as Sent'}
             </button>
           </div>
+
+          <p className="text-xs text-gray-400">
+            Send the email to your client first, then click "Mark as Sent" to record it and unlock the week's completion.
+          </p>
         </div>
       )}
 
-      {sent && (
+      {saved && (
         <button
-          onClick={() => setSent(false)}
+          onClick={() => setSaved(false)}
           className="text-sm text-gray-500 hover:text-gray-700 underline"
         >
           Write another update
@@ -152,6 +191,9 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
                   <span className="text-sm font-medium text-gray-800">
                     {format(parseISO(u.sent_at!), 'd MMM yyyy')}
                   </span>
+                  {u.week_number && (
+                    <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded">Week {u.week_number}</span>
+                  )}
                   <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">{u.delivery_method}</span>
                 </div>
                 <span className="text-xs text-gray-400 truncate max-w-xs">{u.content.slice(0, 60)}…</span>
@@ -168,7 +210,12 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <p className="font-semibold text-gray-900">{format(parseISO(modalUpdate.sent_at!), 'd MMM yyyy')}</p>
-                <p className="text-xs text-gray-500 mt-0.5">via {modalUpdate.delivery_method}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  {modalUpdate.week_number && (
+                    <span className="text-xs text-blue-600">Week {modalUpdate.week_number}</span>
+                  )}
+                  <span className="text-xs text-gray-500">via {modalUpdate.delivery_method}</span>
+                </div>
               </div>
               <button onClick={() => setModalUpdate(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <X className="w-5 h-5" />
