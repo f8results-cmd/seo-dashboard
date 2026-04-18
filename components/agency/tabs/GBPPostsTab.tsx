@@ -19,42 +19,43 @@ function escapeCsvCell(value: string): string {
   return str;
 }
 
-function buildGhlCsv(posts: GbpPost[], client: Pick<Client, 'phone' | 'website_url' | 'gbp_location_name' | 'business_name'>): string {
-  // GHL Social Planner exact column order
+function buildGhlCsv(posts: GbpPost[], client: Pick<Client, 'phone' | 'website_url'>): string {
+  // GHL Social Planner bulk import — exact column order, CRLF line endings, no BOM
   const header = [
-    'Post Content',
-    'Schedule Date',
-    'Schedule Time',
-    'Post URL',
-    'Image',
-    'Title',
-    'Call To Action',
-    'Button Link',
-    'Post Location',
+    'postAtSpecificTime',
+    'content',
+    'source',
+    'originalLink',
+    'originalImage',
+    'categoryId',
+    'title',
+    'callToAction',
+    'callToActionUrl',
   ];
 
-  const postLocation = client.gbp_location_name || client.business_name || '';
-  const cta          = client.phone ? 'Call Now' : 'Learn More';
-  const buttonLink   = client.phone
+  const cta            = client.phone ? 'Call Now' : 'Learn More';
+  const callToActionUrl = client.phone
     ? `tel:${client.phone.replace(/\s/g, '')}`
     : (client.website_url ?? '');
 
   const rows = posts.map((p) => {
     const dt = p.scheduled_date ? parseISO(p.scheduled_date) : null;
+    // YYYY-MM-DD HH:mm:ss
+    const postAt = dt ? format(dt, 'yyyy-MM-dd HH:mm:ss') : '';
     return [
+      postAt,
       p.content,
-      dt ? format(dt, 'dd/MM/yyyy') : '',   // DD/MM/YYYY with forward slashes
-      dt ? format(dt, 'HH:mm') : '',         // 24-hour HH:MM
-      '',                                     // Post URL — blank
-      '',                                     // Image — blank
-      '',                                     // Title — blank for GBP
+      '', // source
+      '', // originalLink
+      '', // originalImage
+      '', // categoryId
+      '', // title
       cta,
-      buttonLink,
-      postLocation,
+      callToActionUrl,
     ];
   });
 
-  return [header, ...rows].map(row => row.map(escapeCsvCell).join(',')).join('\n') + '\n';
+  return [header, ...rows].map(row => row.map(escapeCsvCell).join(',')).join('\r\n') + '\r\n';
 }
 
 // ── Date-range bulk scheduler ────────────────────────────────────────────────
