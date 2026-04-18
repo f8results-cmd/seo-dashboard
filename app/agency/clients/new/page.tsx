@@ -34,6 +34,7 @@ interface FormData {
   auto_respond_reviews: boolean;
   blog_delivery: string;
   agency_notes: string;
+  onboarding_date: string;
   // Website management
   manages_website: boolean;
   website_hosting: string;
@@ -61,7 +62,7 @@ const INITIAL: FormData = {
   ghl_location_id: '', ghl_api_key: '', ghl_webhook_url: '',
   google_maps_embed_url: '', google_tag_id: '',
   skip_website: false, auto_respond_reviews: false, blog_delivery: 'auto-publish',
-  agency_notes: '', logo_url: '',
+  agency_notes: '', logo_url: '', onboarding_date: '',
   manages_website: true, website_hosting: '', domain_registrar: '', domain_owner: 'client',
   webmaster_contact: '', can_make_changes: false, access_notes: '',
   we_host_website: false, hosting_platform: '', hosting_cost_monthly: '',
@@ -201,6 +202,9 @@ export default function NewClientPage() {
             </Field>
             <Field label="Tagline" className="sm:col-span-2">
               <input type="text" value={form.tagline} onChange={(e) => handleChange('tagline', e.target.value)} placeholder="Short tagline for the business" className={inputCls} />
+            </Field>
+            <Field label="Onboarding Date" hint="Start date for rollout checklist" className="sm:col-span-2">
+              <input type="date" value={form.onboarding_date} onChange={(e) => handleChange('onboarding_date', e.target.value)} className={inputCls} />
             </Field>
           </div>
         </Section>

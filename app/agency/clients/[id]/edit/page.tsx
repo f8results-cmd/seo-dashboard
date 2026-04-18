@@ -95,6 +95,7 @@ type FormState = {
   years_in_business: string;
   tagline: string;
   status: string;
+  onboarding_date: string;
   // Online presence
   website_url: string;
   live_url: string;
@@ -120,54 +121,86 @@ type FormState = {
   skip_website: boolean;
   blog_delivery: string;
   agency_notes: string;
+  // Website management
+  manages_website: boolean;
+  website_hosting: string;
+  domain_registrar: string;
+  domain_owner: string;
+  webmaster_contact: string;
+  can_make_changes: boolean;
+  access_notes: string;
+  // Hosting
+  we_host_website: boolean;
+  hosting_platform: string;
+  hosting_cost_monthly: string;
+  hosting_included_in_plan: boolean;
+  external_hosting_location: string;
 };
 
 const EMPTY: FormState = {
   business_name: '', owner_name: '', email: '', phone: '',
   address: '', city: '', state: '', postcode: '',
   niche: '', years_in_business: '', tagline: '', status: 'pending',
+  onboarding_date: '',
   website_url: '', live_url: '', gbp_url: '', gbp_location_name: '',
   google_place_id: '', google_maps_embed_url: '', github_repo: '',
   brand_primary_color: '#1B2B6B', brand_accent_color: '#E8622A', logo_url: '',
   review_count: '', review_rating: '', auto_respond_reviews: false,
   ghl_location_id: '', ghl_api_key: '', ghl_webhook_url: '', google_tag_id: '',
   skip_website: false, blog_delivery: 'ghl', agency_notes: '',
+  manages_website: true, website_hosting: '', domain_registrar: '', domain_owner: 'client',
+  webmaster_contact: '', can_make_changes: false, access_notes: '',
+  we_host_website: false, hosting_platform: '', hosting_cost_monthly: '',
+  hosting_included_in_plan: false, external_hosting_location: '',
 };
 
 function clientToForm(c: Client): FormState {
   return {
-    business_name:         c.business_name ?? '',
-    owner_name:            c.owner_name ?? '',
-    email:                 c.email ?? '',
-    phone:                 c.phone ?? '',
-    address:               c.address ?? '',
-    city:                  c.city ?? '',
-    state:                 c.state ?? '',
-    postcode:              c.postcode ?? '',
-    niche:                 c.niche ?? '',
-    years_in_business:     c.years_in_business?.toString() ?? '',
-    tagline:               c.tagline ?? '',
-    status:                c.status ?? 'pending',
-    website_url:           c.website_url ?? '',
-    live_url:              c.live_url ?? '',
-    gbp_url:               c.gbp_url ?? '',
-    gbp_location_name:     c.gbp_location_name ?? '',
-    google_place_id:       c.google_place_id ?? '',
-    google_maps_embed_url: c.google_maps_embed_url ?? '',
-    github_repo:           c.github_repo ?? '',
-    brand_primary_color:   c.brand_primary_color ?? '#1B2B6B',
-    brand_accent_color:    c.brand_accent_color ?? '#E8622A',
-    logo_url:              c.logo_url ?? '',
-    review_count:          c.review_count?.toString() ?? '',
-    review_rating:         c.review_rating?.toString() ?? '',
-    auto_respond_reviews:  c.auto_respond_reviews ?? false,
-    ghl_location_id:       c.ghl_location_id ?? '',
-    ghl_api_key:           c.ghl_api_key ?? '',
-    ghl_webhook_url:       c.ghl_webhook_url ?? '',
-    google_tag_id:         c.google_tag_id ?? '',
-    skip_website:          c.skip_website ?? false,
-    blog_delivery:         c.blog_delivery ?? 'ghl',
-    agency_notes:          c.agency_notes ?? '',
+    business_name:              c.business_name ?? '',
+    owner_name:                 c.owner_name ?? '',
+    email:                      c.email ?? '',
+    phone:                      c.phone ?? '',
+    address:                    c.address ?? '',
+    city:                       c.city ?? '',
+    state:                      c.state ?? '',
+    postcode:                   c.postcode ?? '',
+    niche:                      c.niche ?? '',
+    years_in_business:          c.years_in_business?.toString() ?? '',
+    tagline:                    c.tagline ?? '',
+    status:                     c.status ?? 'pending',
+    onboarding_date:            c.onboarding_date ?? '',
+    website_url:                c.website_url ?? '',
+    live_url:                   c.live_url ?? '',
+    gbp_url:                    c.gbp_url ?? '',
+    gbp_location_name:          c.gbp_location_name ?? '',
+    google_place_id:            c.google_place_id ?? '',
+    google_maps_embed_url:      c.google_maps_embed_url ?? '',
+    github_repo:                c.github_repo ?? '',
+    brand_primary_color:        c.brand_primary_color ?? '#1B2B6B',
+    brand_accent_color:         c.brand_accent_color ?? '#E8622A',
+    logo_url:                   c.logo_url ?? '',
+    review_count:               c.review_count?.toString() ?? '',
+    review_rating:              c.review_rating?.toString() ?? '',
+    auto_respond_reviews:       c.auto_respond_reviews ?? false,
+    ghl_location_id:            c.ghl_location_id ?? '',
+    ghl_api_key:                c.ghl_api_key ?? '',
+    ghl_webhook_url:            c.ghl_webhook_url ?? '',
+    google_tag_id:              c.google_tag_id ?? '',
+    skip_website:               c.skip_website ?? false,
+    blog_delivery:              c.blog_delivery ?? 'ghl',
+    agency_notes:               c.agency_notes ?? '',
+    manages_website:            c.manages_website ?? true,
+    website_hosting:            c.website_hosting ?? '',
+    domain_registrar:           c.domain_registrar ?? '',
+    domain_owner:               c.domain_owner ?? 'client',
+    webmaster_contact:          c.webmaster_contact ?? '',
+    can_make_changes:           c.can_make_changes ?? false,
+    access_notes:               c.access_notes ?? '',
+    we_host_website:            c.we_host_website ?? false,
+    hosting_platform:           c.hosting_platform ?? '',
+    hosting_cost_monthly:       c.hosting_cost_monthly?.toString() ?? '',
+    hosting_included_in_plan:   c.hosting_included_in_plan ?? false,
+    external_hosting_location:  c.external_hosting_location ?? '',
   };
 }
 
@@ -210,38 +243,51 @@ export default function EditClientPage() {
     setSaving(true);
     try {
       const payload: Partial<Client> = {
-        business_name:         form.business_name || undefined,
-        owner_name:            form.owner_name || null,
-        email:                 form.email || undefined,
-        phone:                 form.phone || null,
-        address:               form.address || null,
-        city:                  form.city || null,
-        state:                 form.state || null,
-        postcode:              form.postcode || null,
-        niche:                 form.niche || null,
-        years_in_business:     form.years_in_business ? parseInt(form.years_in_business) : null,
-        tagline:               form.tagline || null,
-        status:                form.status as Client['status'],
-        website_url:           form.website_url || null,
-        live_url:              form.live_url || null,
-        gbp_url:               form.gbp_url || null,
-        gbp_location_name:     form.gbp_location_name || null,
-        google_place_id:       form.google_place_id || null,
-        google_maps_embed_url: form.google_maps_embed_url || null,
-        github_repo:           form.github_repo || null,
-        brand_primary_color:   form.brand_primary_color || null,
-        brand_accent_color:    form.brand_accent_color || null,
-        logo_url:              form.logo_url || null,
-        review_count:          form.review_count ? parseInt(form.review_count) : null,
-        review_rating:         form.review_rating ? parseFloat(form.review_rating) : null,
-        auto_respond_reviews:  form.auto_respond_reviews,
-        ghl_location_id:       form.ghl_location_id || null,
-        ghl_api_key:           form.ghl_api_key || null,
-        ghl_webhook_url:       form.ghl_webhook_url || null,
-        google_tag_id:         form.google_tag_id || null,
-        skip_website:          form.skip_website,
-        blog_delivery:         form.blog_delivery || null,
-        agency_notes:          form.agency_notes || null,
+        business_name:              form.business_name || undefined,
+        owner_name:                 form.owner_name || null,
+        email:                      form.email || undefined,
+        phone:                      form.phone || null,
+        address:                    form.address || null,
+        city:                       form.city || null,
+        state:                      form.state || null,
+        postcode:                   form.postcode || null,
+        niche:                      form.niche || null,
+        years_in_business:          form.years_in_business ? parseInt(form.years_in_business) : null,
+        tagline:                    form.tagline || null,
+        status:                     form.status as Client['status'],
+        onboarding_date:            form.onboarding_date || null,
+        website_url:                form.website_url || null,
+        live_url:                   form.live_url || null,
+        gbp_url:                    form.gbp_url || null,
+        gbp_location_name:          form.gbp_location_name || null,
+        google_place_id:            form.google_place_id || null,
+        google_maps_embed_url:      form.google_maps_embed_url || null,
+        github_repo:                form.github_repo || null,
+        brand_primary_color:        form.brand_primary_color || null,
+        brand_accent_color:         form.brand_accent_color || null,
+        logo_url:                   form.logo_url || null,
+        review_count:               form.review_count ? parseInt(form.review_count) : null,
+        review_rating:              form.review_rating ? parseFloat(form.review_rating) : null,
+        auto_respond_reviews:       form.auto_respond_reviews,
+        ghl_location_id:            form.ghl_location_id || null,
+        ghl_api_key:                form.ghl_api_key || null,
+        ghl_webhook_url:            form.ghl_webhook_url || null,
+        google_tag_id:              form.google_tag_id || null,
+        skip_website:               form.skip_website,
+        blog_delivery:              form.blog_delivery || null,
+        agency_notes:               form.agency_notes || null,
+        manages_website:            form.manages_website,
+        website_hosting:            form.website_hosting || null,
+        domain_registrar:           form.domain_registrar || null,
+        domain_owner:               form.domain_owner || null,
+        webmaster_contact:          form.webmaster_contact || null,
+        can_make_changes:           form.can_make_changes,
+        access_notes:               form.access_notes || null,
+        we_host_website:            form.we_host_website,
+        hosting_platform:           form.hosting_platform || null,
+        hosting_cost_monthly:       form.hosting_cost_monthly ? parseFloat(form.hosting_cost_monthly) : null,
+        hosting_included_in_plan:   form.hosting_included_in_plan,
+        external_hosting_location:  form.external_hosting_location || null,
       };
 
       const res = await fetch(`/api/clients/${id}`, {
@@ -365,7 +411,7 @@ export default function EditClientPage() {
             placeholder="e.g. plumber, window cleaner, electrician" />
         </Field>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <Field label="Years in Business">
             <input className={cls.input} type="number" min="0" value={form.years_in_business}
               onChange={e => handleChange('years_in_business', e.target.value)} />
@@ -373,6 +419,10 @@ export default function EditClientPage() {
           <Field label="Tagline">
             <input className={cls.input} value={form.tagline}
               onChange={e => handleChange('tagline', e.target.value)} />
+          </Field>
+          <Field label="Onboarding Date" hint="Start date for rollout checklist">
+            <input className={cls.input} type="date" value={form.onboarding_date}
+              onChange={e => handleChange('onboarding_date', e.target.value)} />
           </Field>
         </div>
       </Section>
@@ -487,6 +537,106 @@ export default function EditClientPage() {
           <input className={cls.input} type="url" value={form.ghl_webhook_url}
             onChange={e => handleChange('ghl_webhook_url', e.target.value)} placeholder="https://..." />
         </Field>
+      </Section>
+
+      {/* ── Website Management ── */}
+      <Section title="Website Management">
+        <Toggle
+          label="Do we manage their website?"
+          description="We handle hosting, deployment, and domain for this client"
+          checked={form.manages_website}
+          onChange={v => handleChange('manages_website', v)}
+        />
+        {form.manages_website ? (
+          <div className="grid grid-cols-2 gap-4 pt-1">
+            <Field label="Website hosting">
+              <input className={cls.input} value={form.website_hosting}
+                onChange={e => handleChange('website_hosting', e.target.value)}
+                placeholder="e.g. Vercel, WP Engine, GoDaddy" />
+            </Field>
+            <Field label="Domain registrar">
+              <input className={cls.input} value={form.domain_registrar}
+                onChange={e => handleChange('domain_registrar', e.target.value)}
+                placeholder="e.g. GoDaddy, Namecheap, Crazy Domains" />
+            </Field>
+            <Field label="Who owns the domain?">
+              <div className="flex gap-6 mt-0.5">
+                {(['client', 'us', 'transferring'] as const).map(opt => (
+                  <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="domain_owner" value={opt}
+                      checked={form.domain_owner === opt}
+                      onChange={() => handleChange('domain_owner', opt)}
+                      className="accent-[#1B2B6B]" />
+                    <span className="text-sm text-gray-700 capitalize">
+                      {opt === 'us' ? 'Us' : opt === 'transferring' ? 'Transferring' : 'Client'}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </Field>
+          </div>
+        ) : (
+          <div className="space-y-4 pt-1">
+            <Field label="Client's webmaster contact">
+              <input className={cls.input} value={form.webmaster_contact}
+                onChange={e => handleChange('webmaster_contact', e.target.value)}
+                placeholder="Name / email of whoever manages their site" />
+            </Field>
+            <Toggle
+              label="Can we make changes?"
+              description="We have access to push updates to their site"
+              checked={form.can_make_changes}
+              onChange={v => handleChange('can_make_changes', v)}
+            />
+            <Field label="Access notes">
+              <textarea className={`${cls.input} resize-none`} rows={3}
+                value={form.access_notes}
+                onChange={e => handleChange('access_notes', e.target.value)}
+                placeholder="Login instructions, CMS type, any access caveats…" />
+            </Field>
+          </div>
+        )}
+      </Section>
+
+      {/* ── Hosting ── */}
+      <Section title="Hosting">
+        <Toggle
+          label="Are we hosting their website?"
+          description="We own the hosting account for this client's site"
+          checked={form.we_host_website}
+          onChange={v => handleChange('we_host_website', v)}
+        />
+        {form.we_host_website ? (
+          <div className="space-y-4 pt-1">
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Hosting platform">
+                <input className={cls.input} value={form.hosting_platform}
+                  onChange={e => handleChange('hosting_platform', e.target.value)}
+                  placeholder="e.g. Vercel, Netlify, Railway" />
+              </Field>
+              <Field label="Hosting cost to us ($/mo)">
+                <input className={cls.input} type="number" min="0" step="0.01"
+                  value={form.hosting_cost_monthly}
+                  onChange={e => handleChange('hosting_cost_monthly', e.target.value)}
+                  placeholder="e.g. 20" />
+              </Field>
+            </div>
+            <Toggle
+              label="Hosting included in their plan?"
+              description="Cost is covered by their monthly retainer"
+              checked={form.hosting_included_in_plan}
+              onChange={v => handleChange('hosting_included_in_plan', v)}
+            />
+          </div>
+        ) : (
+          <div className="pt-1">
+            <Field label="Where is it hosted?">
+              <input className={cls.input} value={form.external_hosting_location}
+                onChange={e => handleChange('external_hosting_location', e.target.value)}
+                placeholder="e.g. GoDaddy, WP Engine, their own server" />
+            </Field>
+          </div>
+        )}
       </Section>
 
       {/* ── Agency ── */}
