@@ -9,7 +9,6 @@ import type { Client } from '@/lib/types';
 
 
 const STATUS_OPTIONS = ['pending', 'active', 'complete', 'error', 'inactive'] as const;
-const BLOG_DELIVERY_OPTIONS = ['ghl', 'email', 'none'] as const;
 
 const cls = {
   input: 'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B2B6B]/30 focus:border-[#1B2B6B]/50 bg-white',
@@ -647,17 +646,6 @@ export default function EditClientPage() {
           checked={!form.skip_website}
           onChange={v => handleChange('skip_website', !v)}
         />
-
-        <Field label="Blog Delivery" hint="How blog posts are delivered to the client">
-          <select className={cls.input} value={form.blog_delivery}
-            onChange={e => handleChange('blog_delivery', e.target.value)}>
-            {BLOG_DELIVERY_OPTIONS.map(o => (
-              <option key={o} value={o}>
-                {o === 'ghl' ? 'GoHighLevel (GHL)' : o === 'email' ? 'Email' : 'None'}
-              </option>
-            ))}
-          </select>
-        </Field>
 
         <Field label="Agency Notes">
           <textarea

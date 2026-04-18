@@ -324,39 +324,9 @@ export default function NewClientPage() {
               checked={!form.skip_website}
               onChange={(v) => handleChange('skip_website', !v)}
             />
-            {!form.skip_website ? (
-              <div className="pl-1 space-y-4">
-                <div>
-                  <p className="text-xs font-medium text-gray-600 mb-2">Blog delivery method</p>
-                  <div className="flex gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="blog_delivery"
-                        value="auto-publish"
-                        checked={form.blog_delivery === 'auto-publish'}
-                        onChange={() => handleChange('blog_delivery', 'auto-publish')}
-                        className="accent-[#1B2B6B]"
-                      />
-                      <span className="text-sm text-gray-700">Auto-publish to website</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="blog_delivery"
-                        value="email"
-                        checked={form.blog_delivery === 'email'}
-                        onChange={() => handleChange('blog_delivery', 'email')}
-                        className="accent-[#1B2B6B]"
-                      />
-                      <span className="text-sm text-gray-700">Email for manual upload</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            ) : (
+            {form.skip_website && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                <p className="text-sm text-amber-700">Pipeline will skip website build — blog posts will be emailed for manual upload.</p>
+                <p className="text-sm text-amber-700">Pipeline will skip website build for this client.</p>
               </div>
             )}
             <Toggle

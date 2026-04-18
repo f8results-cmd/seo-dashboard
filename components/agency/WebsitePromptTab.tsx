@@ -45,11 +45,6 @@ function buildPrompt(client: Client, nicheConfig: NicheConfig | null): string {
     category_name?: string;
     slug?: string;
   }>;
-  const blogPosts = (wd.blog_posts ?? []) as Array<{
-    title?: string;
-    slug?: string;
-    published_at?: string;
-  }>;
   const gbpGuide = (wd.gbp_guide ?? {}) as Record<string, unknown>;
   const pageManifest = (wd.page_manifest ?? {}) as {
     pages?: Array<{
@@ -176,18 +171,6 @@ function buildPrompt(client: Client, nicheConfig: NicheConfig | null): string {
     gbpCatPages.forEach((p) => {
       lines.push(`- ${p.title ?? p.category_name ?? 'Untitled'}`);
       if (p.slug) lines.push(`  URL: /gbp/${p.slug}`);
-    });
-    lines.push('');
-  }
-
-  // Blog posts
-  if (blogPosts.length) {
-    lines.push(D);
-    lines.push(`BLOG POSTS (${blogPosts.length})`);
-    lines.push(D);
-    blogPosts.forEach((p) => {
-      const date = p.published_at ? ` (${p.published_at.slice(0, 10)})` : '';
-      lines.push(`- ${p.title ?? 'Untitled'}${date}`);
     });
     lines.push('');
   }
