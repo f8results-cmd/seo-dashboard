@@ -19,39 +19,30 @@ function escapeCsvCell(value: string): string {
   return str;
 }
 
-function buildGhlCsv(posts: GbpPost[], client: Pick<Client, 'phone' | 'website_url'>): string {
-  // GHL Social Planner bulk import — exact column order, CRLF line endings, no BOM
+function buildGhlCsv(posts: GbpPost[], client: Pick<Client, 'website_url'>): string {
+  // GHL Social Planner — Basic Format, CRLF line endings, no BOM
+  // Headers must include parenthetical hints exactly as GHL requires
   const header = [
-    'postAtSpecificTime',
+    'postAtSpecificTime (YYYY-MM-DD HH:mm:ss)',
     'content',
-    'source',
-    'originalLink',
-    'originalImage',
-    'categoryId',
-    'title',
-    'callToAction',
-    'callToActionUrl',
+    'link (OGmetaUrl)',
+    'imageUrls',
+    'gifUrl',
+    'videoUrls',
   ];
 
-  const cta            = client.phone ? 'Call Now' : 'Learn More';
-  const callToActionUrl = client.phone
-    ? `tel:${client.phone.replace(/\s/g, '')}`
-    : (client.website_url ?? '');
+  const link = client.website_url ?? '';
 
   const rows = posts.map((p) => {
-    const dt = p.scheduled_date ? parseISO(p.scheduled_date) : null;
-    // YYYY-MM-DD HH:mm:ss
+    const dt     = p.scheduled_date ? parseISO(p.scheduled_date) : null;
     const postAt = dt ? format(dt, 'yyyy-MM-dd HH:mm:ss') : '';
     return [
       postAt,
       p.content,
-      '', // source
-      '', // originalLink
-      '', // originalImage
-      '', // categoryId
-      '', // title
-      cta,
-      callToActionUrl,
+      link, // link (OGmetaUrl)
+      '',   // imageUrls
+      '',   // gifUrl
+      '',   // videoUrls
     ];
   });
 
