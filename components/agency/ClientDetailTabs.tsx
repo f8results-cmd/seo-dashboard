@@ -38,7 +38,7 @@ function renderTabContent(tabId: string, client: Client, onRefresh?: () => void)
     case 'activity':  return <ActivityLogTab clientId={client.id} />;
     case 'friday':    return <FridayUpdateTab client={client} />;
     case 'gbp-setup': return <GBPSetupTab client={client} />;
-    case 'gbp-posts':  return <GBPPostsTab clientId={client.id} locationId={client.ghl_location_id ?? ''} />;
+    case 'gbp-posts':  return <GBPPostsTab client={client} />;
     case 'website':    return <WebsiteTab client={client} />;
     case 'citations': return <CitationsTab client={client} />;
     case 'rank':      return <RankTrackingTab clientId={client.id} />;

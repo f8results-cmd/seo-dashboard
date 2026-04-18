@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
-import type { GbpPost, PostStatus } from '@/lib/types';
+import type { Client, GbpPost, PostStatus } from '@/lib/types';
 
 const STATUS_STYLES: Record<PostStatus, string> = {
   pending:   'bg-yellow-100 text-yellow-700',
@@ -19,20 +19,42 @@ function escapeCsvCell(value: string): string {
   return str;
 }
 
-function buildGhlCsv(posts: GbpPost[], locationId: string): string {
-  const header = ['Message', 'Schedule Date', 'Schedule Time', 'Post Type', 'Media URL', 'Location ID'];
+function buildGhlCsv(posts: GbpPost[], client: Pick<Client, 'phone' | 'website_url' | 'gbp_location_name' | 'business_name'>): string {
+  // GHL Social Planner exact column order
+  const header = [
+    'Post Content',
+    'Schedule Date',
+    'Schedule Time',
+    'Post URL',
+    'Image',
+    'Title',
+    'Call To Action',
+    'Button Link',
+    'Post Location',
+  ];
+
+  const postLocation = client.gbp_location_name || client.business_name || '';
+  const cta          = client.phone ? 'Call Now' : 'Learn More';
+  const buttonLink   = client.phone
+    ? `tel:${client.phone.replace(/\s/g, '')}`
+    : (client.website_url ?? '');
+
   const rows = posts.map((p) => {
     const dt = p.scheduled_date ? parseISO(p.scheduled_date) : null;
     return [
       p.content,
-      dt ? format(dt, 'MM/dd/yyyy') : '',
-      dt ? format(dt, 'HH:mm') : '',
-      p.post_type ?? '',
-      '',
-      locationId,
+      dt ? format(dt, 'dd/MM/yyyy') : '',   // DD/MM/YYYY with forward slashes
+      dt ? format(dt, 'HH:mm') : '',         // 24-hour HH:MM
+      '',                                     // Post URL — blank
+      '',                                     // Image — blank
+      '',                                     // Title — blank for GBP
+      cta,
+      buttonLink,
+      postLocation,
     ];
   });
-  return [header, ...rows].map(row => row.map(escapeCsvCell).join(',')).join('\n');
+
+  return [header, ...rows].map(row => row.map(escapeCsvCell).join(',')).join('\n') + '\n';
 }
 
 // ── Date-range bulk scheduler ────────────────────────────────────────────────
@@ -42,7 +64,8 @@ function addWeeks(date: Date, n: number): Date {
   return d;
 }
 
-export default function GBPPostsTab({ clientId, locationId = '' }: { clientId: string; locationId?: string }) {
+export default function GBPPostsTab({ client }: { client: Client }) {
+  const clientId = client.id;
   const [posts, setPosts]         = useState<GbpPost[]>([]);
   const [loading, setLoading]     = useState(true);
   const [filter, setFilter]       = useState<PostStatus | 'all'>('all');
@@ -157,7 +180,7 @@ export default function GBPPostsTab({ clientId, locationId = '' }: { clientId: s
       ? posts.filter(p => idsToExport.includes(p.id))
       : filteredPosts;
     if (!subset.length) return;
-    const csv = buildGhlCsv(subset, locationId);
+    const csv = buildGhlCsv(subset, client);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
