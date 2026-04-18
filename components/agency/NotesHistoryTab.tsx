@@ -146,6 +146,10 @@ function ClientNotesSection({ client }: { client: Client }) {
             placeholder="Internal notes about this client — services, constraints, agency instructions..."
             autoFocus
           />
+          <div className="flex items-start justify-between gap-3">
+            <NotesQualityIndicator charCount={value.length} />
+            <span className="text-xs text-gray-400 flex-shrink-0">{value.length} chars</span>
+          </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button
@@ -166,9 +170,14 @@ function ClientNotesSection({ client }: { client: Client }) {
       ) : (
         <div>
           {value ? (
-            <pre className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-sans">
-              {value}
-            </pre>
+            <>
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed font-sans">
+                {value}
+              </pre>
+              <div className="mt-3">
+                <NotesQualityIndicator charCount={value.length} />
+              </div>
+            </>
           ) : (
             <p className="text-sm text-gray-400 italic">No notes yet — click Edit to add agency notes.</p>
           )}
@@ -183,6 +192,30 @@ function ClientNotesSection({ client }: { client: Client }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Notes quality indicator ─────────────────────────────────────────────────
+
+function NotesQualityIndicator({ charCount }: { charCount: number }) {
+  if (charCount === 0) return null;
+  if (charCount < 200) {
+    return (
+      <p className="text-xs text-amber-600 flex items-start gap-1.5">
+        <svg className="w-3.5 h-3.5 flex-shrink-0 mt-px" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+        Add more detail for better results — include services, target keywords, suburbs, years in business, and any local differentiators
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs text-green-600 flex items-center gap-1.5">
+      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+      </svg>
+      Good detail
+    </p>
   );
 }
 

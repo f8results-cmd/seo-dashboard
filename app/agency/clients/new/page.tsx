@@ -50,8 +50,6 @@ interface FormData {
   hosting_cost_monthly: string;
   hosting_included_in_plan: boolean;
   external_hosting_location: string;
-  // Image fallback
-  use_fallback_images: boolean;
 }
 
 const INITIAL: FormData = {
@@ -68,7 +66,6 @@ const INITIAL: FormData = {
   webmaster_contact: '', can_make_changes: false, access_notes: '',
   we_host_website: false, hosting_platform: '', hosting_cost_monthly: '',
   hosting_included_in_plan: false, external_hosting_location: '',
-  use_fallback_images: true,
 };
 
 const AU_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
@@ -335,12 +332,6 @@ export default function NewClientPage() {
               description="Automatically post AI-drafted responses to new reviews"
               checked={form.auto_respond_reviews}
               onChange={(v) => handleChange('auto_respond_reviews', v)}
-            />
-            <Toggle
-              label="Generate placeholder images if none uploaded?"
-              description="ImageAgent fetches stock photos (Pexels) + AI hero (fal.ai) when client has no photos"
-              checked={form.use_fallback_images}
-              onChange={(v) => handleChange('use_fallback_images', v)}
             />
           </div>
         </Section>

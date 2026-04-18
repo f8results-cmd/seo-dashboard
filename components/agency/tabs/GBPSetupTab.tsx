@@ -65,8 +65,7 @@ export default function GBPSetupTab({ client }: { client: Client }) {
   const [saveMsg, setSaveMsg] = useState('');
   const [newName, setNewName] = useState('');
   const [regenerating, setRegenerating] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [selectedSuggestions, setSelectedSuggestions] = useState<Record<string, boolean>>({});
+  const [regenMsg, setRegenMsg] = useState('');
   const [regenError, setRegenError] = useState('');
 
   useEffect(() => {
@@ -151,31 +150,17 @@ export default function GBPSetupTab({ client }: { client: Client }) {
   async function regenerate() {
     setRegenerating(true);
     setRegenError('');
-    setSuggestions([]);
-    setSelectedSuggestions({});
+    setRegenMsg('');
     try {
       const res = await fetch(`/api/clients/${client.id}/categories/regenerate`, { method: 'POST' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? 'Regenerate failed');
-      const suggested: string[] = data.categories ?? [];
-      setSuggestions(suggested);
-      const init: Record<string, boolean> = {};
-      for (const s of suggested) init[s] = !categories.includes(s);
-      setSelectedSuggestions(init);
+      if (!res.ok) throw new Error(data?.error ?? 'Research failed');
+      setRegenMsg('Research started — categories will be written in ~30 seconds. Reload this page to see results.');
     } catch (err: unknown) {
-      setRegenError(err instanceof Error ? err.message : 'Regenerate failed');
+      setRegenError(err instanceof Error ? err.message : 'Research failed');
     } finally {
       setRegenerating(false);
     }
-  }
-
-  function applySuggestions() {
-    const chosen = suggestions.filter(s => selectedSuggestions[s]);
-    if (!chosen.length) return;
-    setCategories(chosen);
-    setSuggestions([]);
-    setSelectedSuggestions({});
-    setDirty(true);
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -292,34 +277,8 @@ export default function GBPSetupTab({ client }: { client: Client }) {
             <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mt-2">{regenError}</p>
           )}
 
-          {suggestions.length > 0 && (
-            <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-3 space-y-2">
-              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Suggestions — select to use</p>
-              <ul className="space-y-1">
-                {suggestions.map(s => (
-                  <li key={s} className="flex items-center gap-2">
-                    <input type="checkbox" id={`sug-${s}`} checked={!!selectedSuggestions[s]}
-                      onChange={() => setSelectedSuggestions(prev => ({ ...prev, [s]: !prev[s] }))}
-                      className="accent-[#E8622A]" />
-                    <label htmlFor={`sug-${s}`} className="text-sm text-gray-800 cursor-pointer select-none">
-                      {s}
-                      {categories.includes(s) && <span className="ml-1 text-xs text-gray-400">(already in list)</span>}
-                    </label>
-                  </li>
-                ))}
-              </ul>
-              <div className="flex gap-2 pt-1">
-                <button type="button" onClick={applySuggestions}
-                  disabled={!suggestions.some(s => selectedSuggestions[s])}
-                  className="px-3 py-1 bg-[#1a2744] text-white text-xs font-medium rounded hover:bg-[#243565] transition-colors disabled:opacity-40">
-                  Use selected
-                </button>
-                <button type="button" onClick={() => { setSuggestions([]); setSelectedSuggestions({}); }}
-                  className="px-3 py-1 text-gray-500 text-xs hover:text-gray-700 transition-colors">
-                  Dismiss
-                </button>
-              </div>
-            </div>
+          {regenMsg && (
+            <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2 mt-2">{regenMsg}</p>
           )}
 
           {categories.length > 0 && !dirty && (

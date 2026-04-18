@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 import { format, parseISO, startOfDay, addDays, isToday, isBefore } from 'date-fns';
 import { healthColour, calcStaffChecklistPct } from '@/lib/health';
+import { formatNiche } from '@/lib/utils';
 import type { Client, ClientTask } from '@/lib/types';
 import { CheckSquare, Users, Bell, Clock, ChevronRight, Plus } from 'lucide-react';
 
@@ -9,11 +10,11 @@ export const revalidate = 30;
 
 const STATUS_STYLES: Record<string, string> = {
   active:   'bg-green-100 text-green-700',
-  pending:  'bg-amber-100 text-amber-700',
+  pending:  'bg-gray-100 text-gray-500',
   running:  'bg-blue-100 text-blue-700',
   error:    'bg-red-100 text-red-700',
   failed:   'bg-red-100 text-red-700',
-  complete: 'bg-gray-100 text-gray-600',
+  complete: 'bg-blue-100 text-blue-700',
   inactive: 'bg-gray-100 text-gray-400',
 };
 
@@ -231,7 +232,7 @@ export default async function AgencyDashboard() {
                   <td className="px-4 py-3 text-gray-500">
                     <div className="flex flex-col gap-0.5">
                       {client.niche && (
-                        <span className="inline-flex w-fit bg-[#1a2744] text-white text-xs px-2 py-0.5 rounded-full">{client.niche}</span>
+                        <span className="inline-flex w-fit bg-[#1a2744] text-white text-xs px-2 py-0.5 rounded-full">{formatNiche(client.niche)}</span>
                       )}
                       {client.city && (
                         <span className="text-xs text-gray-400">{client.city}{client.state ? `, ${client.state}` : ''}</span>
@@ -239,9 +240,14 @@ export default async function AgencyDashboard() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium capitalize ${STATUS_STYLES[client.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                      {client.status}
-                    </span>
+                    {(() => {
+                      const displayStatus = lastJobByClient[client.id] ? client.status : 'pending';
+                      return (
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-medium capitalize ${STATUS_STYLES[displayStatus] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1)}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span

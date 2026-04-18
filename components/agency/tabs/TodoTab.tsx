@@ -1,10 +1,18 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Plus, Check, AlertCircle, Loader2, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { format, isPast, isToday, parseISO } from 'date-fns';
-import type { Client, ClientTask, TaskPriority, StaffChecklistKey, ChecklistItemMeta } from '@/lib/types';
+import type { Client, ClientTask, TaskPriority, TaskPhase, StaffChecklistKey, ChecklistItemMeta } from '@/lib/types';
+
+const PHASE_LABELS: Partial<Record<TaskPhase, string>> = {
+  gbp_setup:  'Week 1: GBP Setup',
+  website:    'Week 1: Website',
+  citations:  'Week 2: Citations',
+  ongoing:    'Ongoing',
+};
 
 // ---- Standard delivery tasks ----
 const STAFF_TASKS: { key: StaffChecklistKey; label: string; category: string }[] = [
@@ -65,6 +73,9 @@ interface Props {
 
 export default function TodoTab({ client, onUpdate }: Props) {
   const supabase = createClient();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const activePhase = searchParams.get('phase') as TaskPhase | null;
 
   // ---- Section 1: Standard checklist local state ----
   const [checks, setChecks]     = useState<CheckState>(client.onboarding_checklist?.checklist ?? {});
@@ -143,6 +154,16 @@ export default function TodoTab({ client, onUpdate }: Props) {
 
   const openTasks = tasks.filter(t => !t.completed);
   const doneTasks = tasks.filter(t => t.completed);
+
+  const filteredOpen = activePhase && activePhase !== 'general'
+    ? openTasks.filter(t => t.phase === activePhase)
+    : openTasks;
+
+  function clearPhaseFilter() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('phase');
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
 
   function isOverdue(t: ClientTask) {
     return !t.completed && !!t.due_date && isPast(parseISO(t.due_date)) && !isToday(parseISO(t.due_date));
@@ -310,13 +331,32 @@ export default function TodoTab({ client, onUpdate }: Props) {
           </form>
         )}
 
+        {/* Phase filter banner */}
+        {activePhase && activePhase !== 'general' && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+            <span className="text-sm text-orange-700 flex-1">
+              Showing: <span className="font-medium">{PHASE_LABELS[activePhase] ?? activePhase}</span>
+            </span>
+            <button
+              onClick={clearPhaseFilter}
+              className="flex items-center gap-1 text-xs text-orange-500 hover:text-orange-700 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" /> Clear filter
+            </button>
+          </div>
+        )}
+
         {loadingTasks ? (
           <p className="text-sm text-gray-400">Loading…</p>
-        ) : openTasks.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-4">No additional tasks — add one above.</p>
+        ) : filteredOpen.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">
+            {activePhase && activePhase !== 'general'
+              ? `No tasks for ${PHASE_LABELS[activePhase] ?? activePhase} yet.`
+              : 'No additional tasks — add one above.'}
+          </p>
         ) : (
           <div className="space-y-2">
-            {openTasks.map(task => (
+            {filteredOpen.map(task => (
               <div
                 key={task.id}
                 className={`flex items-start gap-3 bg-white border rounded-lg px-4 py-3 ${

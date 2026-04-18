@@ -3,21 +3,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, RefreshCw, Pencil } from 'lucide-react';
+import { ArrowLeft, ExternalLink, RefreshCw, Pencil, User, Phone, Mail, Send } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { calcHealthScore, calcOnboardingPct } from '@/lib/health';
+import { formatNiche } from '@/lib/utils';
 import ClientDetailTabs from '@/components/agency/ClientDetailTabs';
 import OnboardingChecklist from '@/components/agency/OnboardingChecklist';
 import HealthScore from '@/components/agency/HealthScore';
+import PhaseTracker from '@/components/agency/PhaseTracker';
 import type { Client, Deliverable } from '@/lib/types';
 
 const STATUS_STYLES: Record<string, string> = {
   active:   'bg-green-100 text-green-700',
-  pending:  'bg-amber-100 text-amber-700',
+  pending:  'bg-gray-100 text-gray-500',
   running:  'bg-blue-100 text-blue-700',
   error:    'bg-red-100 text-red-700',
   failed:   'bg-red-100 text-red-700',
-  complete: 'bg-gray-100 text-gray-600',
+  complete: 'bg-blue-100 text-blue-700',
   inactive: 'bg-gray-100 text-gray-400',
 };
 
@@ -126,12 +128,12 @@ export default function ClientDetailPage() {
             <div className="flex items-center gap-3 flex-wrap mb-1">
               <h1 className="text-2xl font-bold text-gray-900">{client.business_name}</h1>
               <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_STYLES[client.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                {client.status}
+                {client.status.charAt(0).toUpperCase() + client.status.slice(1)}
               </span>
             </div>
             <div className="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
               {client.niche && (
-                <span className="bg-[#1a2744] text-white text-xs px-2.5 py-1 rounded-full">{client.niche}</span>
+                <span className="bg-[#1a2744] text-white text-xs px-2.5 py-1 rounded-full">{formatNiche(client.niche)}</span>
               )}
               {client.city && <span>{client.city}{client.state ? `, ${client.state}` : ''}</span>}
               {client.live_url && (
@@ -140,6 +142,51 @@ export default function ClientDetailPage() {
                 </a>
               )}
             </div>
+
+            {/* Contact bar */}
+            {(client.owner_name || client.phone || client.email) && (
+              <div className="flex items-center gap-2 mt-2 text-sm text-gray-500 flex-wrap">
+                {client.owner_name && (
+                  <>
+                    <span className="flex items-center gap-1">
+                      <User className="w-3.5 h-3.5 text-gray-400" />
+                      {client.owner_name}
+                    </span>
+                  </>
+                )}
+                {client.owner_name && (client.phone || client.email) && (
+                  <span className="text-gray-300 select-none">|</span>
+                )}
+                {client.phone && (
+                  <>
+                    <a href={`tel:${client.phone}`} className="flex items-center gap-1 hover:text-gray-700 transition-colors">
+                      <Phone className="w-3.5 h-3.5 text-gray-400" />
+                      {client.phone}
+                    </a>
+                  </>
+                )}
+                {client.phone && client.email && (
+                  <span className="text-gray-300 select-none">|</span>
+                )}
+                {client.email && (
+                  <a href={`mailto:${client.email}`} className="flex items-center gap-1 hover:text-gray-700 transition-colors">
+                    <Mail className="w-3.5 h-3.5 text-gray-400" />
+                    {client.email}
+                  </a>
+                )}
+                {client.email && (
+                  <>
+                    <span className="text-gray-300 select-none">|</span>
+                    <a
+                      href={`mailto:${client.email}?subject=${encodeURIComponent(`Update from Figure 8 Results — ${client.business_name}`)}`}
+                      className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-[#E8622A] border border-[#E8622A]/30 rounded-md hover:bg-[#E8622A]/5 transition-colors"
+                    >
+                      <Send className="w-3 h-3" /> Send Email
+                    </a>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Edit button */}
@@ -147,7 +194,7 @@ export default function ClientDetailPage() {
             href={`/agency/clients/${id}/edit`}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
-            <Pencil className="w-3.5 h-3.5" /> Edit
+            <Pencil className="w-3.5 h-3.5" /> Edit Client
           </Link>
 
           {/* Health + onboarding */}
@@ -172,6 +219,9 @@ export default function ClientDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Phase tracker */}
+      <PhaseTracker clientId={id} />
 
       {/* Two-column layout: checklist + tabs */}
       <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-start">

@@ -27,7 +27,6 @@ export default function PhotosTab({ client, onUpdate }: { client: Client; onUpda
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [regenerating, setRegenerating] = useState(false);
 
   // ── Load photos from clients.photos on mount ─────────────────────────────────
   useEffect(() => {
@@ -173,30 +172,6 @@ export default function PhotosTab({ client, onUpdate }: { client: Client; onUpda
     onUpdate?.();
   }
 
-  // ── Regenerate fallback images ───────────────────────────────────────────────
-  async function regenerateFallbacks(clearExisting: boolean) {
-    const railwayUrl = process.env.NEXT_PUBLIC_RAILWAY_URL;
-    if (!railwayUrl) { setError('NEXT_PUBLIC_RAILWAY_URL not configured'); return; }
-    setRegenerating(true);
-    setError('');
-    setSuccess('');
-    try {
-      const res = await fetch(
-        `${railwayUrl}/run-images/${clientId}?clear_fallbacks=${clearExisting}`,
-        { method: 'POST' },
-      );
-      if (res.ok) {
-        setSuccess('Image generation started — refresh in a minute to see results.');
-      } else {
-        setError('Failed to start image generation.');
-      }
-    } catch {
-      setError('Could not reach the platform server.');
-    } finally {
-      setRegenerating(false);
-    }
-  }
-
   // ── Drag & drop ──────────────────────────────────────────────────────────────
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -303,35 +278,15 @@ export default function PhotosTab({ client, onUpdate }: { client: Client; onUpda
 
       {/* Gallery */}
       {photos.length === 0 ? (
-        <div className="text-center py-6 space-y-3">
-          <p className="text-sm text-gray-400">No photos uploaded yet.</p>
-          <button
-            onClick={() => regenerateFallbacks(false)}
-            disabled={regenerating}
-            className="text-sm px-4 py-2 bg-[#1B2B6B] text-white rounded-lg hover:bg-[#152257] disabled:opacity-60 transition-colors"
-          >
-            {regenerating ? 'Generating…' : 'Generate placeholder images'}
-          </button>
+        <div className="text-center py-6">
+          <p className="text-sm text-gray-400">No photos uploaded yet. Use the uploader above to add photos.</p>
         </div>
       ) : (
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm text-gray-500">
               {photos.length} photo{photos.length !== 1 ? 's' : ''}
-              {(client as any).photos_source && (client as any).photos_source !== 'uploaded' && (
-                <span className="ml-2 text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-                  {(client as any).photos_source === 'ai_generated' ? 'AI + stock' : (client as any).photos_source}
-                </span>
-              )}
             </p>
-            <button
-              onClick={() => regenerateFallbacks(true)}
-              disabled={regenerating}
-              className="text-xs px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-60 transition-colors"
-              title="Clear stock/AI photos and regenerate from scratch (keeps uploaded photos)"
-            >
-              {regenerating ? 'Generating…' : 'Replace fallback images'}
-            </button>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
             {photos.map((photo, i) => (

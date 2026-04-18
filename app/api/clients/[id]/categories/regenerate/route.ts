@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 type Params = { params: { id: string } };
 
 // POST /api/clients/[id]/categories/regenerate
-// Calls Railway to ask Claude for fresh category suggestions.
-// Returns suggestions only — does NOT save to the database.
+// Kicks off CategoryResearchAgent on Railway — researches GBP competitors and writes
+// validated primary + secondary categories directly to the clients table.
 export async function POST(_req: NextRequest, { params }: Params) {
   const railwayUrl = process.env.RAILWAY_URL ?? process.env.NEXT_PUBLIC_RAILWAY_URL;
   if (!railwayUrl) {
@@ -12,7 +12,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   }
 
   try {
-    const res = await fetch(`${railwayUrl}/categories/${params.id}/regenerate`, {
+    const res = await fetch(`${railwayUrl}/categories/${params.id}/research`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
