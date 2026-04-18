@@ -3,199 +3,223 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { format, parseISO, isBefore, startOfDay } from 'date-fns';
-import type { ClientTask } from '@/lib/types';
-import { Plus, CheckCircle, Circle, ChevronDown } from 'lucide-react';
+import { format, parseISO, isBefore, startOfDay, isToday } from 'date-fns';
+import { Check, AlertCircle, Mail, ChevronDown } from 'lucide-react';
 
-const PRIORITY_BAR: Record<string, string> = {
-  high:   'bg-red-500',
-  medium: 'bg-amber-400',
-  low:    'bg-blue-400',
-};
-
-const PRIORITY_LABEL: Record<string, string> = {
-  high:   'text-red-600',
-  medium: 'text-amber-600',
-  low:    'text-blue-600',
-};
-
-interface TaskWithClient extends ClientTask {
-  clients: { business_name: string; id: string } | null;
+interface RolloutItemRow {
+  id: string;
+  label: string;
+  category: string | null;
+  completed: boolean;
+  completed_at: string | null;
 }
 
-function TaskCard({
-  task,
-  toggle,
-  remove,
-  today,
-}: {
-  task: TaskWithClient;
-  toggle: (task: TaskWithClient) => void;
-  remove: (id: string) => void;
-  today: Date;
-}) {
-  const overdue = !task.completed && task.due_date && isBefore(parseISO(task.due_date), today);
-  return (
-    <div className={`flex items-start gap-3 p-4 rounded-lg border transition-colors ${
-      task.completed ? 'border-gray-100 bg-gray-50 opacity-60' : 'border-gray-200 bg-white'
-    }`}>
-      <span className={`w-1 self-stretch rounded-full flex-shrink-0 ${PRIORITY_BAR[task.priority] ?? 'bg-gray-200'}`} />
-      <button onClick={() => toggle(task)} className="mt-0.5 flex-shrink-0 text-gray-300 hover:text-green-500 transition-colors">
-        {task.completed ? <CheckCircle className="w-5 h-5 text-green-400" /> : <Circle className="w-5 h-5" />}
-      </button>
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm font-medium ${task.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-          {task.description}
-        </p>
-        <div className="flex items-center gap-3 mt-1 flex-wrap">
-          {task.clients && (
-            <Link href={`/agency/clients/${task.clients.id}?tab=todo`} className="text-xs text-[#E8622A] hover:underline">
-              {task.clients.business_name}
-            </Link>
-          )}
-          <span className={`text-xs font-medium capitalize ${PRIORITY_LABEL[task.priority] ?? ''}`}>
-            {task.priority}
-          </span>
-          {task.due_date && (
-            <span className={`text-xs ${overdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-              {overdue ? 'Overdue · ' : ''}{format(parseISO(task.due_date), 'd MMM yyyy')}
-            </span>
-          )}
-        </div>
-      </div>
-      <button onClick={() => remove(task.id)} className="text-gray-300 hover:text-red-400 text-xs mt-0.5 flex-shrink-0">✕</button>
-    </div>
-  );
+interface RolloutWeekRow {
+  id: string;
+  client_id: string;
+  week_number: number;
+  week_label: string;
+  phase: string;
+  starts_on: string;
+  ends_on: string;
+  completed: boolean;
+  items: RolloutItemRow[];
+  friday_update: { id: string; sent_at: string | null } | null;
+  client_name: string;
 }
 
-export default function TodoPage() {
-  const [tasks, setTasks]       = useState<TaskWithClient[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [showDone, setShowDone] = useState(false);
-  const [adding, setAdding]     = useState(false);
-  const [desc, setDesc]         = useState('');
-  const [dueDate, setDueDate]   = useState('');
-  const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('medium');
-  const [clientId, setClientId] = useState('');
-  const [clients, setClients]   = useState<{ id: string; business_name: string }[]>([]);
+const PHASE_BADGE: Record<string, string> = {
+  gbp_setup:      'bg-blue-50 text-blue-700',
+  website:        'bg-purple-50 text-purple-700',
+  website_onpage: 'bg-violet-50 text-violet-700',
+  citations:      'bg-orange-50 text-orange-700',
+  ongoing:        'bg-green-50 text-green-700',
+};
 
+function weekStatus(week: RolloutWeekRow, today: Date) {
+  const done = week.items.filter(i => i.completed).length;
+  const total = week.items.length;
+  const allDone = total > 0 && done === total && !!week.friday_update;
+  const overdue = !allDone && isBefore(parseISO(week.ends_on), today);
+  const dueToday = isToday(parseISO(week.ends_on));
+  return { done, total, allDone, overdue, dueToday };
+}
+
+export default function RolloutOverviewPage() {
+  const [weeks, setWeeks]         = useState<RolloutWeekRow[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [showComplete, setShowComplete] = useState(false);
   const supabase = createClient();
   const today = startOfDay(new Date());
 
   const load = useCallback(async () => {
-    const [{ data: taskData }, { data: clientData }] = await Promise.all([
-      supabase.from('client_tasks').select('*, clients(id, business_name)').order('due_date').order('created_at', { ascending: false }),
-      supabase.from('clients').select('id, business_name').order('business_name'),
-    ]);
-    setTasks((taskData ?? []) as TaskWithClient[]);
-    setClients((clientData ?? []) as { id: string; business_name: string }[]);
+    // Fetch all rollout weeks with items, friday updates, and client name
+    const { data: weeksData } = await supabase
+      .from('client_rollout_weeks')
+      .select(`
+        id, client_id, week_number, week_label, phase, starts_on, ends_on, completed,
+        items:client_rollout_items(id, label, category, completed, completed_at),
+        clients(business_name)
+      `)
+      .order('ends_on', { ascending: true })
+      .order('week_number', { ascending: true });
+
+    // Fetch latest friday update per client+week
+    const { data: fridayData } = await supabase
+      .from('friday_updates')
+      .select('id, client_id, week_number, sent_at')
+      .not('sent_at', 'is', null)
+      .order('sent_at', { ascending: false });
+
+    // Build lookup: client_id + week_number → friday update
+    const fuMap: Record<string, { id: string; sent_at: string | null }> = {};
+    for (const fu of (fridayData ?? [])) {
+      const key = `${fu.client_id}__${fu.week_number}`;
+      if (!fuMap[key]) fuMap[key] = { id: fu.id, sent_at: fu.sent_at };
+    }
+
+    const rows: RolloutWeekRow[] = (weeksData ?? []).map((w: Record<string, unknown>) => {
+      const clientInfo = w.clients as { business_name: string } | null;
+      return {
+        id: w.id as string,
+        client_id: w.client_id as string,
+        week_number: w.week_number as number,
+        week_label: w.week_label as string,
+        phase: w.phase as string,
+        starts_on: w.starts_on as string,
+        ends_on: w.ends_on as string,
+        completed: w.completed as boolean,
+        items: (w.items as RolloutItemRow[]) ?? [],
+        friday_update: fuMap[`${w.client_id}__${w.week_number}`] ?? null,
+        client_name: clientInfo?.business_name ?? 'Unknown',
+      };
+    });
+
+    setWeeks(rows);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  async function addTask(e: React.FormEvent) {
-    e.preventDefault();
-    if (!desc.trim()) return;
-    await supabase.from('client_tasks').insert({
-      client_id: clientId || null,
-      description: desc.trim(),
-      due_date: dueDate || null,
-      priority,
-      completed: false,
-    });
-    setDesc(''); setDueDate(''); setPriority('medium'); setClientId('');
-    setAdding(false);
-    load();
-  }
+  const open     = weeks.filter(w => !weekStatus(w, today).allDone);
+  const complete = weeks.filter(w =>  weekStatus(w, today).allDone);
 
-  async function toggle(task: TaskWithClient) {
-    await supabase.from('client_tasks').update({ completed: !task.completed }).eq('id', task.id);
-    setTasks(ts => ts.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t));
+  // Group open weeks by ends_on date
+  const grouped: Record<string, RolloutWeekRow[]> = {};
+  for (const w of open) {
+    if (!grouped[w.ends_on]) grouped[w.ends_on] = [];
+    grouped[w.ends_on].push(w);
   }
-
-  async function remove(id: string) {
-    await supabase.from('client_tasks').delete().eq('id', id);
-    setTasks(ts => ts.filter(t => t.id !== id));
-  }
-
-  const open = tasks.filter(t => !t.completed);
-  const done = tasks.filter(t => t.completed);
+  const sortedDates = Object.keys(grouped).sort();
 
   if (loading) return <div className="p-6 text-gray-400 text-sm">Loading…</div>;
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl mx-auto">
+    <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">To Do</h1>
-        <button
-          onClick={() => setAdding(a => !a)}
-          className="flex items-center gap-2 bg-[#E8622A] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#d05520] transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Add Task
-        </button>
+        <h1 className="text-2xl font-bold text-gray-900">Rollout Checklist</h1>
+        <span className="text-sm text-gray-400">{open.length} weeks in progress</span>
       </div>
 
-      {/* Add form */}
-      {adding && (
-        <form onSubmit={addTask} className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-          <h3 className="font-semibold text-gray-900">New task</h3>
-          <input
-            autoFocus
-            value={desc}
-            onChange={e => setDesc(e.target.value)}
-            placeholder="Task description…"
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30"
-          />
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">Client (optional)</label>
-              <select value={clientId} onChange={e => setClientId(e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none">
-                <option value="">None</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.business_name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">Due date</label>
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none" />
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">Priority</label>
-              <select value={priority} onChange={e => setPriority(e.target.value as 'high' | 'medium' | 'low')} className="w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none">
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button type="submit" className="bg-[#1a2744] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#243460] transition-colors">Save</button>
-            <button type="button" onClick={() => setAdding(false)} className="text-gray-400 text-sm px-4 py-2">Cancel</button>
-          </div>
-        </form>
+      {open.length === 0 && (
+        <div className="text-center py-12 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
+          <Check className="w-8 h-8 text-green-500 mx-auto mb-2" />
+          <p className="text-gray-600 font-medium">All weeks complete!</p>
+        </div>
       )}
 
-      {/* Open tasks */}
-      <div className="space-y-2">
-        {open.length === 0 && (
-          <p className="text-sm text-gray-400 text-center py-8">No open tasks. Nice work!</p>
-        )}
-        {open.map(task => <TaskCard key={task.id} task={task} toggle={toggle} remove={remove} today={today} />)}
-      </div>
+      {sortedDates.map(date => {
+        const dateWeeks = grouped[date];
+        const isPast   = isBefore(parseISO(date), today);
+        const isThisWeek = isToday(parseISO(date)) || (!isPast && isBefore(parseISO(date), new Date(today.getTime() + 7 * 86400000)));
+        return (
+          <div key={date}>
+            <div className="flex items-center gap-2 mb-2">
+              <h2 className={`text-sm font-semibold ${isPast ? 'text-red-600' : isThisWeek ? 'text-[#E8622A]' : 'text-gray-700'}`}>
+                Due {format(parseISO(date), 'EEEE d MMM yyyy')}
+              </h2>
+              {isPast && <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Overdue</span>}
+              {isThisWeek && !isPast && <span className="text-xs font-medium text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">This week</span>}
+            </div>
+            <div className="space-y-2">
+              {dateWeeks.map(week => {
+                const { done, total, overdue } = weekStatus(week, today);
+                const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                const phaseBadge = PHASE_BADGE[week.phase] ?? 'bg-gray-100 text-gray-600';
+                const allItemsDone = total > 0 && done === total;
+                return (
+                  <Link
+                    key={week.id}
+                    href={`/agency/clients/${week.client_id}?tab=checklist`}
+                    className={`block p-4 rounded-xl border transition-colors hover:shadow-sm ${
+                      overdue ? 'border-red-200 bg-red-50/30 hover:bg-red-50/60' : 'border-gray-200 bg-white hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="font-semibold text-sm text-gray-900">{week.client_name}</span>
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${phaseBadge}`}>
+                            {week.week_label}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
+                          <span>{format(parseISO(week.starts_on), 'd MMM')} – {format(parseISO(week.ends_on), 'd MMM yyyy')}</span>
+                          <span>{done}/{total} tasks</span>
+                          {week.friday_update && (
+                            <span className="text-blue-600 flex items-center gap-1">
+                              <Mail className="w-3 h-3" /> Update sent
+                            </span>
+                          )}
+                          {allItemsDone && !week.friday_update && (
+                            <span className="text-amber-600 flex items-center gap-1">
+                              <Mail className="w-3 h-3" /> Needs Friday update
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
+                        <div className="w-20 bg-gray-200 rounded-full h-1.5">
+                          <div
+                            className="h-1.5 rounded-full transition-all"
+                            style={{ width: `${pct}%`, backgroundColor: overdue ? '#ef4444' : '#E8622A' }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-500 w-8 text-right">{pct}%</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
 
-      {/* Completed */}
-      {done.length > 0 && (
+      {/* Completed weeks */}
+      {complete.length > 0 && (
         <div>
           <button
-            onClick={() => setShowDone(s => !s)}
+            onClick={() => setShowComplete(s => !s)}
             className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors mb-3"
           >
-            <ChevronDown className={`w-4 h-4 transition-transform ${showDone ? '' : '-rotate-90'}`} />
-            Completed ({done.length})
+            <ChevronDown className={`w-4 h-4 transition-transform ${showComplete ? '' : '-rotate-90'}`} />
+            Completed weeks ({complete.length})
           </button>
-          {showDone && (
+          {showComplete && (
             <div className="space-y-2">
-              {done.map(task => <TaskCard key={task.id} task={task} toggle={toggle} remove={remove} today={today} />)}
+              {complete.map(week => (
+                <Link
+                  key={week.id}
+                  href={`/agency/clients/${week.client_id}?tab=checklist`}
+                  className="flex items-center gap-3 p-3 rounded-xl border border-green-100 bg-green-50/30 hover:bg-green-50/60 transition-colors opacity-70"
+                >
+                  <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span className="text-sm text-gray-700 font-medium">{week.client_name}</span>
+                  <span className="text-xs text-gray-400">— {week.week_label}</span>
+                  <span className="text-xs text-gray-400 ml-auto">{format(parseISO(week.ends_on), 'd MMM yyyy')}</span>
+                </Link>
+              ))}
             </div>
           )}
         </div>

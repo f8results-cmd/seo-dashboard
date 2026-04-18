@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { Client } from '@/lib/types';
-import TodoTab        from './tabs/TodoTab';
+import RolloutChecklistTab from './tabs/RolloutChecklistTab';
 import ActivityLogTab from './tabs/ActivityLogTab';
 import FridayUpdateTab from './tabs/FridayUpdateTab';
 import GBPSetupTab    from './tabs/GBPSetupTab';
@@ -20,7 +20,7 @@ interface Props {
 }
 
 const TABS = [
-  { id: 'todo',         label: 'To Do' },
+  { id: 'checklist',    label: 'Checklist' },
   { id: 'activity',     label: 'Activity Log' },
   { id: 'friday',       label: 'Friday Update' },
   { id: 'gbp-setup',    label: 'GBP Setup' },
@@ -34,7 +34,7 @@ const TABS = [
 
 function renderTabContent(tabId: string, client: Client, onRefresh?: () => void) {
   switch (tabId) {
-    case 'todo':      return <TodoTab client={client} onUpdate={onRefresh} />;
+    case 'checklist': return <RolloutChecklistTab client={client} />;
     case 'activity':  return <ActivityLogTab clientId={client.id} />;
     case 'friday':    return <FridayUpdateTab client={client} />;
     case 'gbp-setup': return <GBPSetupTab client={client} />;
@@ -44,14 +44,14 @@ function renderTabContent(tabId: string, client: Client, onRefresh?: () => void)
     case 'rank':      return <RankTrackingTab clientId={client.id} />;
     case 'photos':    return <PhotosTab client={client} onUpdate={onRefresh} />;
     case 'pipeline':  return <PipelineTab client={client} />;
-    default:          return <TodoTab client={client} onUpdate={onRefresh} />;
+    default:          return <RolloutChecklistTab client={client} />;
   }
 }
 
 export default function ClientDetailTabs({ client, onRefresh }: Props) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const activeTab = searchParams.get('tab') ?? 'todo';
+  const activeTab = searchParams.get('tab') ?? 'checklist';
 
   // Track which tabs have been visited — each tab mounts once and stays in the DOM
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(() => new Set([activeTab]));

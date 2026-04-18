@@ -92,6 +92,7 @@ export interface Client {
   created_at: string;
   // Onboarding / operational
   onboarding_checklist: OnboardingChecklist | null;
+  onboarding_date: string | null;
   last_friday_update: string | null;
   health_score: number;
   // Website management
@@ -228,7 +229,46 @@ export interface FridayUpdate {
   content: string;
   sent_at: string | null;
   delivery_method: string;
+  week_number: number | null;
+  sent_by_user_id: string | null;
   created_at?: string;
+}
+
+// ── Rollout checklist (Item 3) ─────────────────────────────────────────────
+export type RolloutPhase =
+  | 'gbp_setup'
+  | 'website'
+  | 'website_onpage'
+  | 'citations'
+  | 'ongoing';
+
+export interface RolloutWeek {
+  id: string;
+  client_id: string;
+  week_number: number;
+  week_label: string;
+  phase: RolloutPhase;
+  starts_on: string;   // ISO date
+  ends_on: string;     // ISO date — always a Friday
+  completed: boolean;
+  created_at: string;
+  // joined
+  items?: RolloutItem[];
+  friday_update?: FridayUpdate | null;
+}
+
+export interface RolloutItem {
+  id: string;
+  week_id: string;
+  client_id: string;
+  item_key: string;
+  label: string;
+  category: string | null;
+  sort_order: number;
+  completed: boolean;
+  completed_at: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 // Computed reminder (not a DB table — generated from client data)
