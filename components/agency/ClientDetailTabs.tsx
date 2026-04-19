@@ -15,6 +15,7 @@ import PhotosTab      from './tabs/PhotosTab';
 import PipelineTab    from './tabs/PipelineTab';
 import ReviewsTab     from './tabs/ReviewsTab';
 import BacklinksTab   from './tabs/BacklinksTab';
+import AIEditorTab   from './tabs/AIEditorTab';
 
 interface Props {
   client: Client;
@@ -34,6 +35,7 @@ const TABS = [
   { id: 'pipeline',     label: 'Pipeline' },
   { id: 'reviews',      label: 'Reviews' },
   { id: 'backlinks',    label: 'Backlinks' },
+  { id: 'ai-editor',   label: 'AI Editor' },
 ];
 
 function renderTabContent(tabId: string, client: Client, onRefresh?: () => void) {
@@ -49,8 +51,9 @@ function renderTabContent(tabId: string, client: Client, onRefresh?: () => void)
     case 'photos':    return <PhotosTab client={client} onUpdate={onRefresh} />;
     case 'pipeline':  return <PipelineTab client={client} />;
     case 'reviews':   return <ReviewsTab client={client} />;
-    case 'backlinks': return <BacklinksTab client={client} />;
-    default:          return <RolloutChecklistTab client={client} />;
+    case 'backlinks':  return <BacklinksTab client={client} />;
+    case 'ai-editor':  return <AIEditorTab client={client} />;
+    default:           return <RolloutChecklistTab client={client} />;
   }
 }
 
