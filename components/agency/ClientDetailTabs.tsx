@@ -13,6 +13,7 @@ import CitationsTab   from './tabs/CitationsTab';
 import RankTrackingTab from './tabs/RankTrackingTab';
 import PhotosTab      from './tabs/PhotosTab';
 import PipelineTab    from './tabs/PipelineTab';
+import ReviewsTab     from './tabs/ReviewsTab';
 
 interface Props {
   client: Client;
@@ -30,6 +31,7 @@ const TABS = [
   { id: 'rank',         label: 'Rank Tracking' },
   { id: 'photos',       label: 'Photos' },
   { id: 'pipeline',     label: 'Pipeline' },
+  { id: 'reviews',      label: 'Reviews' },
 ];
 
 function renderTabContent(tabId: string, client: Client, onRefresh?: () => void) {
@@ -44,6 +46,7 @@ function renderTabContent(tabId: string, client: Client, onRefresh?: () => void)
     case 'rank':      return <RankTrackingTab clientId={client.id} />;
     case 'photos':    return <PhotosTab client={client} onUpdate={onRefresh} />;
     case 'pipeline':  return <PipelineTab client={client} />;
+    case 'reviews':   return <ReviewsTab client={client} />;
     default:          return <RolloutChecklistTab client={client} />;
   }
 }

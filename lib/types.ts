@@ -48,6 +48,22 @@ export type ReviewStatus = 'pending' | 'approved' | 'posted';
 export type TaskPriority = 'high' | 'medium' | 'low';
 export type TaskPhase    = 'gbp_setup' | 'website' | 'citations' | 'ongoing' | 'general';
 
+export interface HoursDay {
+  open: string | null;
+  close: string | null;
+  closed: boolean;
+}
+
+export interface BusinessHours {
+  monday: HoursDay;
+  tuesday: HoursDay;
+  wednesday: HoursDay;
+  thursday: HoursDay;
+  friday: HoursDay;
+  saturday: HoursDay;
+  sunday: HoursDay;
+}
+
 export interface Client {
   id: string;
   business_name: string;
@@ -118,6 +134,8 @@ export interface Client {
   } | null;
   // Content voice matching
   inspiration_url: string | null;
+  // Business hours
+  hours: BusinessHours | null;
 }
 
 export interface Job {

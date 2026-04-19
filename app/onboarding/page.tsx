@@ -1,9 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-
+import type { BusinessHours, HoursDay } from '@/lib/types';
 
 const AU_STATES = ['ACT', 'NSW', 'NT', 'QLD', 'SA', 'TAS', 'VIC', 'WA'];
+
+const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+type DayKey = typeof DAYS_OF_WEEK[number];
+
+const DEFAULT_HOURS: BusinessHours = {
+  monday:    { open: '08:00', close: '17:00', closed: false },
+  tuesday:   { open: '08:00', close: '17:00', closed: false },
+  wednesday: { open: '08:00', close: '17:00', closed: false },
+  thursday:  { open: '08:00', close: '17:00', closed: false },
+  friday:    { open: '08:00', close: '17:00', closed: false },
+  saturday:  { open: null,    close: null,    closed: true  },
+  sunday:    { open: null,    close: null,    closed: true  },
+};
 
 interface FormData {
   business_name: string;
@@ -52,12 +65,17 @@ const INITIAL: FormData = {
 
 export default function OnboardingPage() {
   const [form, setForm] = useState<FormData>(INITIAL);
+  const [hours, setHours] = useState<BusinessHours>(DEFAULT_HOURS);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
   function update(field: keyof FormData, value: string | boolean) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateHoursDay(day: DayKey, updated: HoursDay) {
+    setHours(prev => ({ ...prev, [day]: updated }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -69,7 +87,7 @@ export default function OnboardingPage() {
       const res = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, hours }),
       });
 
       const data = await res.json();
@@ -317,6 +335,14 @@ export default function OnboardingPage() {
             </div>
           </Section>
 
+          {/* Business Hours */}
+          <Section title="Business Hours">
+            <p className="text-xs text-gray-400 -mt-2 mb-3">Defaults to Mon–Fri 8 am–5 pm. Synced to Google Business Profile.</p>
+            {DAYS_OF_WEEK.map(day => (
+              <HoursRow key={day} day={day} value={hours[day]} onChange={updateHoursDay} />
+            ))}
+          </Section>
+
           {/* Notes */}
           <Section title="Agency Notes">
             <textarea
@@ -368,6 +394,43 @@ function Field({ label, required, hint, className, children }: {
       </label>
       {children}
       {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
+    </div>
+  );
+}
+
+function HoursRow({ day, value, onChange }: {
+  day: DayKey;
+  value: HoursDay;
+  onChange: (day: DayKey, updated: HoursDay) => void;
+}) {
+  const label = day.charAt(0).toUpperCase() + day.slice(1);
+  return (
+    <div className="flex items-center gap-3 py-1.5">
+      <span className="w-24 text-sm text-gray-700 shrink-0">{label}</span>
+      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={value.closed}
+          onChange={e => onChange(day, { open: null, close: null, closed: e.target.checked })}
+          className="accent-[#1B2B6B] w-3.5 h-3.5"
+        />
+        <span className="text-xs text-gray-500">Closed</span>
+      </label>
+      <input
+        type="time"
+        disabled={value.closed}
+        value={value.open ?? ''}
+        onChange={e => onChange(day, { ...value, open: e.target.value || null })}
+        className={`${inputCls} w-32 disabled:opacity-40 disabled:cursor-not-allowed`}
+      />
+      <span className="text-xs text-gray-400">to</span>
+      <input
+        type="time"
+        disabled={value.closed}
+        value={value.close ?? ''}
+        onChange={e => onChange(day, { ...value, close: e.target.value || null })}
+        className={`${inputCls} w-32 disabled:opacity-40 disabled:cursor-not-allowed`}
+      />
     </div>
   );
 }

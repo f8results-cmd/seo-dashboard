@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import type { Client } from '@/lib/types';
+import type { Client, BusinessHours, HoursDay } from '@/lib/types';
 
 
 const STATUS_OPTIONS = ['pending', 'active', 'complete', 'error', 'inactive'] as const;
@@ -61,6 +61,56 @@ function Toggle({ label, description, checked, onChange }: {
           checked ? 'translate-x-6' : 'translate-x-1'
         }`} />
       </button>
+    </div>
+  );
+}
+
+const DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+type DayKey = typeof DAYS_OF_WEEK[number];
+
+const DEFAULT_HOURS: BusinessHours = {
+  monday:    { open: '08:00', close: '17:00', closed: false },
+  tuesday:   { open: '08:00', close: '17:00', closed: false },
+  wednesday: { open: '08:00', close: '17:00', closed: false },
+  thursday:  { open: '08:00', close: '17:00', closed: false },
+  friday:    { open: '08:00', close: '17:00', closed: false },
+  saturday:  { open: null,    close: null,    closed: true  },
+  sunday:    { open: null,    close: null,    closed: true  },
+};
+
+function HoursRow({ day, value, onChange }: {
+  day: DayKey;
+  value: HoursDay;
+  onChange: (day: DayKey, updated: HoursDay) => void;
+}) {
+  const label = day.charAt(0).toUpperCase() + day.slice(1);
+  return (
+    <div className="flex items-center gap-3 py-1.5">
+      <span className="w-24 text-sm text-gray-700 shrink-0">{label}</span>
+      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={value.closed}
+          onChange={e => onChange(day, { open: null, close: null, closed: e.target.checked })}
+          className="accent-[#1B2B6B] w-3.5 h-3.5"
+        />
+        <span className="text-xs text-gray-500">Closed</span>
+      </label>
+      <input
+        type="time"
+        disabled={value.closed}
+        value={value.open ?? ''}
+        onChange={e => onChange(day, { ...value, open: e.target.value || null })}
+        className={`${cls.input} w-32 disabled:opacity-40 disabled:cursor-not-allowed`}
+      />
+      <span className="text-xs text-gray-400">to</span>
+      <input
+        type="time"
+        disabled={value.closed}
+        value={value.close ?? ''}
+        onChange={e => onChange(day, { ...value, close: e.target.value || null })}
+        className={`${cls.input} w-32 disabled:opacity-40 disabled:cursor-not-allowed`}
+      />
     </div>
   );
 }
@@ -216,6 +266,7 @@ export default function EditClientPage() {
   const [saving, setSaving]     = useState(false);
   const [toast, setToast]       = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [form, setForm]         = useState<FormState>(EMPTY);
+  const [hours, setHours]       = useState<BusinessHours>(DEFAULT_HOURS);
   const [businessName, setBusinessName] = useState('');
 
   const supabase = createClient();
@@ -232,6 +283,7 @@ export default function EditClientPage() {
         } else {
           const c = data as Client;
           setForm(clientToForm(c));
+          setHours(c.hours ?? DEFAULT_HOURS);
           setBusinessName(c.business_name);
         }
         setLoading(false);
@@ -240,6 +292,10 @@ export default function EditClientPage() {
 
   const handleChange = (field: string, value: string | boolean) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleHoursChange = (day: DayKey, updated: HoursDay) => {
+    setHours(prev => ({ ...prev, [day]: updated }));
   };
 
   async function save() {
@@ -292,6 +348,7 @@ export default function EditClientPage() {
         hosting_cost_monthly:       form.hosting_cost_monthly ? parseFloat(form.hosting_cost_monthly) : null,
         hosting_included_in_plan:   form.hosting_included_in_plan,
         external_hosting_location:  form.external_hosting_location || null,
+        hours,
       };
 
       const res = await fetch(`/api/clients/${id}`, {
@@ -519,6 +576,14 @@ export default function EditClientPage() {
           checked={form.auto_respond_reviews}
           onChange={v => handleChange('auto_respond_reviews', v)}
         />
+      </Section>
+
+      {/* ── Business Hours ── */}
+      <Section title="Business Hours">
+        <p className="text-xs text-gray-400 -mt-2 mb-1">Synced to Google Business Profile by the GBP agent.</p>
+        {DAYS_OF_WEEK.map(day => (
+          <HoursRow key={day} day={day} value={hours[day]} onChange={handleHoursChange} />
+        ))}
       </Section>
 
       {/* ── Integrations ── */}
