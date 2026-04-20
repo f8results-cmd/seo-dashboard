@@ -8,9 +8,10 @@ import { createClient } from '@/lib/supabase/client';
 import { calcHealthScore, calcOnboardingPct } from '@/lib/health';
 import { formatNiche } from '@/lib/utils';
 import ClientDetailTabs from '@/components/agency/ClientDetailTabs';
-import OnboardingChecklist from '@/components/agency/OnboardingChecklist';
 import HealthScore from '@/components/agency/HealthScore';
 import PhaseTracker from '@/components/agency/PhaseTracker';
+import PipelineSidebar from '@/components/agency/PipelineSidebar';
+import NotesSidebar from '@/components/agency/NotesSidebar';
 import type { Client, Deliverable } from '@/lib/types';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -114,7 +115,7 @@ export default function ClientDetailPage() {
   const { pct: onboardPct, complete: onboardComplete, total: onboardTotal } = calcOnboardingPct(client, deliverables, gbpPostCount);
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
       {/* Back nav */}
       <Link href="/agency/clients" className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors w-fit">
         <ArrowLeft className="w-4 h-4" /> All clients
@@ -223,15 +224,32 @@ export default function ClientDetailPage() {
       {/* Phase tracker */}
       <PhaseTracker clientId={id} />
 
-      {/* Two-column layout: checklist + tabs */}
-      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6 items-start">
-        <OnboardingChecklist
-          client={client}
-          deliverables={deliverables}
-          gbpPostCount={gbpPostCount}
-          onUpdate={load}
-        />
-        <ClientDetailTabs client={client} onRefresh={load} />
+      {/* Agency notes warning — shown when notes are missing or too short */}
+      {(!client.agency_notes || client.agency_notes.trim().length < 100) && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+          <span className="text-amber-500 mt-0.5 shrink-0">⚠</span>
+          <div>
+            <span className="font-semibold">Agency notes {!client.agency_notes || client.agency_notes.trim().length === 0 ? 'are missing' : `are too short (${client.agency_notes.trim().length} chars)`}.</span>
+            {' '}The pipeline will be blocked until agency notes are at least 100 characters. Add services, target keywords, suburb coverage, and differentiators.{' '}
+            <Link href={`/agency/clients/${id}/edit`} className="underline font-medium hover:text-amber-900">
+              Edit client →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Three-panel layout: Notes | checklist+tabs | Pipeline */}
+      <div className="flex gap-5 items-start">
+        {/* Left: notes sidebar */}
+        <NotesSidebar client={client} />
+
+        {/* Center: tabs */}
+        <div className="flex-1 min-w-0">
+          <ClientDetailTabs client={client} onRefresh={load} />
+        </div>
+
+        {/* Right: pipeline sidebar */}
+        <PipelineSidebar client={client} />
       </div>
     </div>
   );

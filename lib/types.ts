@@ -94,6 +94,7 @@ export interface Client {
   postcode: string | null;
   skip_website: boolean;
   ghl_webhook_url: string | null;
+  ghl_social_planner_url: string | null;
   google_maps_embed_url: string | null;
   google_place_id: string | null;
   google_tag_id: string | null;
