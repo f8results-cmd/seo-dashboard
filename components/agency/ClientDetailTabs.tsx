@@ -3,17 +3,16 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { Client } from '@/lib/types';
-import ActivityLogTab from './tabs/ActivityLogTab';
-import FridayUpdateTab from './tabs/FridayUpdateTab';
-import GBPSetupTab    from './tabs/GBPSetupTab';
-import GBPPostsTab    from './tabs/GBPPostsTab';
-import WebsiteTab     from './tabs/WebsiteTab';
-import CitationsTab   from './tabs/CitationsTab';
-import SEOHealthTab    from './tabs/SEOHealthTab';
-import PhotosTab      from './tabs/PhotosTab';
-import ReviewsTab     from './tabs/ReviewsTab';
-import BacklinksTab   from './tabs/BacklinksTab';
-import AIEditorTab   from './tabs/AIEditorTab';
+import RolloutChecklistTab from './tabs/RolloutChecklistTab';
+import GBPSetupTab         from './tabs/GBPSetupTab';
+import GBPPostsTab         from './tabs/GBPPostsTab';
+import WebsiteTab          from './tabs/WebsiteTab';
+import CitationsTab        from './tabs/CitationsTab';
+import SEOHealthTab        from './tabs/SEOHealthTab';
+import PhotosTab           from './tabs/PhotosTab';
+import ReviewsTab          from './tabs/ReviewsTab';
+import BacklinksTab        from './tabs/BacklinksTab';
+import AIEditorTab         from './tabs/AIEditorTab';
 
 interface Props {
   client: Client;
@@ -21,43 +20,42 @@ interface Props {
 }
 
 const TABS = [
-  { id: 'activity',     label: 'Activity Log' },
-  { id: 'friday',       label: 'Friday Update' },
-  { id: 'gbp-setup',    label: 'GBP Setup' },
-  { id: 'gbp-posts',    label: 'GBP Posts' },
-  { id: 'website',      label: 'Website' },
-  { id: 'citations',    label: 'Citations' },
-  { id: 'seo-health',   label: 'SEO Health' },
-  { id: 'photos',       label: 'Photos' },
-  { id: 'reviews',      label: 'Reviews' },
-  { id: 'backlinks',    label: 'Backlinks' },
-  { id: 'ai-editor',   label: 'AI Editor' },
+  { id: 'rollout',    label: 'Rollout Checklist' },
+  { id: 'gbp-setup',  label: 'GBP Setup' },
+  { id: 'gbp-posts',  label: 'GBP Posts' },
+  { id: 'website',    label: 'Website' },
+  { id: 'citations',  label: 'Citations' },
+  { id: 'seo-health', label: 'SEO Health' },
+  { id: 'photos',     label: 'Photos' },
+  { id: 'reviews',    label: 'Reviews' },
+  { id: 'backlinks',  label: 'Backlinks' },
+  { id: 'ai-editor',  label: 'AI Editor' },
 ];
 
 function renderTabContent(tabId: string, client: Client, onRefresh?: () => void) {
   switch (tabId) {
-    case 'activity':  return <ActivityLogTab clientId={client.id} />;
-    case 'friday':    return <FridayUpdateTab client={client} />;
+    case 'rollout':   return <RolloutChecklistTab client={client} />;
     case 'gbp-setup': return <GBPSetupTab client={client} />;
-    case 'gbp-posts':  return <GBPPostsTab client={client} />;
-    case 'website':    return <WebsiteTab client={client} />;
-    case 'citations':   return <CitationsTab client={client} />;
-    case 'seo-health':  return <SEOHealthTab client={client} />;
-    case 'photos':      return <PhotosTab client={client} onUpdate={onRefresh} />;
+    case 'gbp-posts': return <GBPPostsTab client={client} />;
+    case 'website':   return <WebsiteTab client={client} />;
+    case 'citations': return <CitationsTab client={client} />;
+    case 'seo-health':return <SEOHealthTab client={client} />;
+    case 'photos':    return <PhotosTab client={client} onUpdate={onRefresh} />;
     case 'reviews':   return <ReviewsTab client={client} />;
-    case 'backlinks':  return <BacklinksTab client={client} />;
-    case 'ai-editor':  return <AIEditorTab client={client} />;
-    default:           return null;
+    case 'backlinks': return <BacklinksTab client={client} />;
+    case 'ai-editor': return <AIEditorTab client={client} />;
+    default:          return null;
   }
 }
 
 export default function ClientDetailTabs({ client, onRefresh }: Props) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const activeTab = searchParams.get('tab') ?? 'activity';
+  const activeTab = searchParams.get('tab') ?? 'rollout';
 
   // Track which tabs have been visited — each tab mounts once and stays in the DOM
-  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(() => new Set([activeTab]));
+  const validActiveTab = TABS.some(t => t.id === activeTab) ? activeTab : 'rollout';
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(() => new Set([validActiveTab]));
 
   function setTab(id: string) {
     setLoadedTabs(prev => new Set(Array.from(prev).concat(id)));
@@ -75,7 +73,7 @@ export default function ClientDetailTabs({ client, onRefresh }: Props) {
             key={tab.id}
             onClick={() => setTab(tab.id)}
             className={`flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors
-              ${activeTab === tab.id
+              ${validActiveTab === tab.id
                 ? 'border-[#E8622A] text-[#E8622A] bg-white'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
@@ -89,7 +87,7 @@ export default function ClientDetailTabs({ client, onRefresh }: Props) {
       <div>
         {TABS.map(tab =>
           loadedTabs.has(tab.id) ? (
-            <div key={tab.id} style={{ display: activeTab === tab.id ? 'block' : 'none' }}>
+            <div key={tab.id} style={{ display: validActiveTab === tab.id ? 'block' : 'none' }}>
               {renderTabContent(tab.id, client, onRefresh)}
             </div>
           ) : null
