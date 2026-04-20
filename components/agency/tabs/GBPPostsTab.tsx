@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
+import { ExternalLink, Pencil, X } from 'lucide-react';
 import type { Client, GbpPost, PostStatus } from '@/lib/types';
 
 const STATUS_STYLES: Record<PostStatus, string> = {
@@ -205,6 +206,26 @@ export default function GBPPostsTab({ client }: { client: Client }) {
   const [posts, setPosts]         = useState<GbpPost[]>([]);
   const [loading, setLoading]     = useState(true);
   const [filter, setFilter]       = useState<PostStatus | 'all'>('all');
+
+  // GHL Social Planner URL
+  const [ghlUrl, setGhlUrl]         = useState(client.ghl_social_planner_url ?? '');
+  const [editingGhl, setEditingGhl] = useState(false);
+  const [ghlDraft, setGhlDraft]     = useState('');
+  const [ghlSaving, setGhlSaving]   = useState(false);
+
+  async function saveGhlUrl() {
+    setGhlSaving(true);
+    const res = await fetch(`/api/clients/${clientId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ghl_social_planner_url: ghlDraft.trim() || null }),
+    });
+    if (res.ok) {
+      setGhlUrl(ghlDraft.trim());
+      setEditingGhl(false);
+    }
+    setGhlSaving(false);
+  }
 
   // selection — plain object avoids Set iteration (TS downlevel compat)
   const [selected, setSelected]   = useState<Record<string, boolean>>({});
@@ -429,6 +450,76 @@ export default function GBPPostsTab({ client }: { client: Client }) {
 
   return (
     <div className="p-6 space-y-4">
+
+      {/* ── GHL Social Planner link ── */}
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <h3 className="font-semibold text-gray-900 text-sm">GHL Social Planner</h3>
+        {!editingGhl ? (
+          ghlUrl ? (
+            <div className="flex items-center gap-3">
+              <a
+                href={ghlUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-medium text-white bg-[#1a2744] hover:bg-[#243561] rounded-lg px-4 py-2 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open in GHL
+              </a>
+              <button
+                onClick={() => { setGhlDraft(ghlUrl); setEditingGhl(true); }}
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
+                title="Edit URL"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="url"
+                value={ghlDraft}
+                onChange={e => setGhlDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveGhlUrl(); }}
+                placeholder="Paste GHL Social Planner URL"
+                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a2744]/30"
+              />
+              <button
+                onClick={saveGhlUrl}
+                disabled={!ghlDraft.trim() || ghlSaving}
+                className="text-sm font-medium text-white bg-[#1a2744] hover:bg-[#243561] rounded-lg px-4 py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {ghlSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          )
+        ) : (
+          <div className="flex items-center gap-2">
+            <input
+              autoFocus
+              type="url"
+              value={ghlDraft}
+              onChange={e => setGhlDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') saveGhlUrl(); if (e.key === 'Escape') setEditingGhl(false); }}
+              placeholder="Paste GHL Social Planner URL"
+              className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#1a2744]/30"
+            />
+            <button
+              onClick={saveGhlUrl}
+              disabled={!ghlDraft.trim() || ghlSaving}
+              className="text-sm font-medium text-white bg-[#1a2744] hover:bg-[#243561] rounded-lg px-4 py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {ghlSaving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={() => { setEditingGhl(false); setGhlDraft(''); }}
+              className="p-2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* ── Posting schedule ── */}
       <SchedulePanel
