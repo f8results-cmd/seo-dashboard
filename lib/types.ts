@@ -137,6 +137,8 @@ export interface Client {
   inspiration_url: string | null;
   // Business hours
   hours: BusinessHours | null;
+  // Photos
+  photo_drive_url: string | null;
 }
 
 export interface Job {

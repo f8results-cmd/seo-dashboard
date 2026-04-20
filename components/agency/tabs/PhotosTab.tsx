@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Upload, Trash2, Image as ImageIcon, Sparkles, Star, Check, X, ChevronDown } from 'lucide-react';
+import { Upload, Trash2, Image as ImageIcon, Sparkles, Star, Check, X, ChevronDown, FolderOpen, Pencil, ExternalLink } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { Client } from '@/lib/types';
 
@@ -68,6 +68,26 @@ function QualityBadge({ score }: { score: number }) {
 export default function PhotosTab({ client, onUpdate }: { client: Client; onUpdate?: () => void }) {
   const clientId = client.id;
   const supabase = createClient();
+
+  // ── Drive folder state ──────────────────────────────────────────────────────
+  const [driveUrl, setDriveUrl] = useState<string | null>(client.photo_drive_url ?? null);
+  const [driveInput, setDriveInput] = useState('');
+  const [driveEditing, setDriveEditing] = useState(false);
+  const [driveSaving, setDriveSaving] = useState(false);
+
+  async function saveDriveUrl(url: string) {
+    setDriveSaving(true);
+    await fetch(`/api/clients/${clientId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photo_drive_url: url || null }),
+    });
+    setDriveUrl(url || null);
+    setDriveEditing(false);
+    setDriveInput('');
+    setDriveSaving(false);
+    onUpdate?.();
+  }
 
   // ── Logo state ──────────────────────────────────────────────────────────────
   const [logoUrl, setLogoUrl] = useState<string | null>(client.logo_url ?? null);
@@ -315,6 +335,59 @@ export default function PhotosTab({ client, onUpdate }: { client: Client; onUpda
   // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="p-6 space-y-6">
+
+      {/* Client Photo Drive */}
+      <div className="border border-gray-200 rounded-xl p-5 space-y-3">
+        <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+          <FolderOpen className="w-4 h-4 text-[#E8622A]" />
+          Client Photo Drive
+        </h3>
+        {driveUrl && !driveEditing ? (
+          <div className="flex items-center gap-3">
+            <a
+              href={driveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-medium text-white bg-[#E8622A] hover:bg-[#d05520] rounded-lg px-4 py-2 transition-colors"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Open Drive Folder
+            </a>
+            <button
+              onClick={() => { setDriveInput(driveUrl); setDriveEditing(true); }}
+              className="p-1.5 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
+              title="Edit URL"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <input
+              type="url"
+              value={driveEditing ? driveInput : driveInput}
+              onChange={e => setDriveInput(e.target.value)}
+              placeholder="Paste Google Drive folder URL"
+              className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30"
+            />
+            <button
+              onClick={() => saveDriveUrl(driveInput.trim())}
+              disabled={!driveInput.trim() || driveSaving}
+              className="text-sm font-medium text-white bg-[#E8622A] hover:bg-[#d05520] rounded-lg px-4 py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {driveSaving ? 'Saving…' : 'Save'}
+            </button>
+            {driveEditing && (
+              <button
+                onClick={() => { setDriveEditing(false); setDriveInput(''); }}
+                className="text-sm text-gray-400 hover:text-gray-600 px-2 py-2"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Business Logo */}
       <div className="border border-gray-200 rounded-xl p-5 space-y-4">
