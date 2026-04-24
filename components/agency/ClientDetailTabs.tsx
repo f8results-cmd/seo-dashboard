@@ -14,6 +14,8 @@ import ReviewsTab          from './tabs/ReviewsTab';
 import BacklinksTab        from './tabs/BacklinksTab';
 import AIEditorTab         from './tabs/AIEditorTab';
 import RankTrackingTab     from './tabs/RankTrackingTab';
+import FridayUpdateTab     from './tabs/FridayUpdateTab';
+import TodoTab             from './tabs/TodoTab';
 
 interface Props {
   client: Client;
@@ -21,17 +23,19 @@ interface Props {
 }
 
 const TABS = [
-  { id: 'rollout',    label: 'Rollout Checklist' },
-  { id: 'gbp-setup',  label: 'GBP Setup' },
-  { id: 'gbp-posts',  label: 'GBP Posts' },
-  { id: 'website',    label: 'Website' },
-  { id: 'citations',  label: 'Citations' },
-  { id: 'seo-health', label: 'SEO Health' },
-  { id: 'photos',     label: 'Photos' },
-  { id: 'reviews',    label: 'Reviews' },
-  { id: 'backlinks',      label: 'Backlinks' },
-  { id: 'rank-tracking',  label: 'Rank Tracking' },
-  { id: 'ai-editor',      label: 'AI Editor' },
+  { id: 'rollout',      label: 'Rollout Checklist' },
+  { id: 'gbp-setup',   label: 'GBP Setup' },
+  { id: 'gbp-posts',   label: 'GBP Posts' },
+  { id: 'website',     label: 'Website' },
+  { id: 'citations',   label: 'Citations' },
+  { id: 'seo-health',  label: 'SEO Health' },
+  { id: 'photos',      label: 'Photos' },
+  { id: 'reviews',     label: 'Reviews' },
+  { id: 'backlinks',   label: 'Backlinks' },
+  { id: 'rank-tracking', label: 'Rank Tracking' },
+  { id: 'ai-editor',   label: 'AI Editor' },
+  { id: 'friday',      label: 'Friday Updates' },
+  { id: 'todo',        label: 'To Do' },
 ];
 
 function renderTabContent(tabId: string, client: Client, onRefresh?: () => void) {
@@ -47,6 +51,8 @@ function renderTabContent(tabId: string, client: Client, onRefresh?: () => void)
     case 'backlinks':     return <BacklinksTab client={client} />;
     case 'rank-tracking': return <RankTrackingTab clientId={client.id} />;
     case 'ai-editor':     return <AIEditorTab client={client} />;
+    case 'friday':        return <FridayUpdateTab client={client} />;
+    case 'todo':          return <TodoTab client={client} />;
     default:              return null;
   }
 }

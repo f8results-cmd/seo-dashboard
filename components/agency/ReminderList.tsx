@@ -114,9 +114,10 @@ export default function ReminderList({ initialReminders }: { initialReminders: R
                 onClick={() => handleComplete(r)}
                 disabled={isLoading}
                 title="Mark as done"
-                className="w-8 h-8 flex items-center justify-center rounded-full text-gray-300 hover:text-green-500 hover:bg-green-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-500 bg-white hover:border-green-300 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                <CheckCircle2 className="w-5 h-5" />
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {isLoading ? 'Saving…' : 'Done'}
               </button>
             </div>
           </div>
