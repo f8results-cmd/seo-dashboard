@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Play, RefreshCw, ChevronDown, ChevronRight, Loader2, X, RotateCcw, PanelRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { format, parseISO, formatDistanceStrict } from 'date-fns';
@@ -75,7 +75,6 @@ function SidebarContent({ client }: { client: Client }) {
   const [msg, setMsg] = useState('');
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const supabase = createClient();
 
@@ -93,13 +92,19 @@ function SidebarContent({ client }: { client: Client }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-poll every 20s while a job is running
-  const hasRunning = jobs.some(j => j.status === 'running');
+  // Subscribe to real-time job changes for this client instead of polling
   useEffect(() => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    if (hasRunning) pollRef.current = setInterval(load, 20_000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [hasRunning, load]);
+    const channel = supabase
+      .channel(`jobs-${client.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'jobs',
+        filter: `client_id=eq.${client.id}`,
+      }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [client.id, load]);
 
   const lastFailed = jobs.find(j => j.status === 'error');
 

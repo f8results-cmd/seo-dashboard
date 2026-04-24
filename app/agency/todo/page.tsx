@@ -53,7 +53,12 @@ export default function RolloutOverviewPage() {
   const today = startOfDay(new Date());
 
   const load = useCallback(async () => {
-    // Fetch all rollout weeks with items, friday updates, and client name
+    // Only load weeks ending within the last 30 days or in the future — completed
+    // weeks older than 30 days are irrelevant to the operational view.
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
     const { data: weeksData } = await supabase
       .from('client_rollout_weeks')
       .select(`
@@ -61,15 +66,18 @@ export default function RolloutOverviewPage() {
         items:client_rollout_items(id, label, category, completed, completed_at),
         clients(business_name)
       `)
+      .gte('ends_on', thirtyDaysAgoStr)
       .order('ends_on', { ascending: true })
       .order('week_number', { ascending: true });
 
-    // Fetch latest friday update per client+week
+    // Only need recent friday updates — enough to cover the weeks we loaded
     const { data: fridayData } = await supabase
       .from('friday_updates')
       .select('id, client_id, week_number, sent_at')
       .not('sent_at', 'is', null)
-      .order('sent_at', { ascending: false });
+      .gte('sent_at', thirtyDaysAgo.toISOString())
+      .order('sent_at', { ascending: false })
+      .limit(500);
 
     // Build lookup: client_id + week_number → friday update
     const fuMap: Record<string, { id: string; sent_at: string | null }> = {};

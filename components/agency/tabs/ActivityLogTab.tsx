@@ -73,10 +73,10 @@ export default function ActivityLogTab({ clientId }: { clientId: string }) {
       { data: posts },
       { data: notes },
     ] = await Promise.all([
-      supabase.from('jobs').select('*').eq('client_id', clientId).order('started_at', { ascending: false }).limit(50),
-      supabase.from('scheduled_jobs').select('*').eq('client_id', clientId).order('run_at', { ascending: false }).limit(30),
-      supabase.from('gbp_posts').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(20),
-      supabase.from('client_notes').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(30),
+      supabase.from('jobs').select('id, agent_name, status, started_at, completed_at').eq('client_id', clientId).order('started_at', { ascending: false }).limit(50),
+      supabase.from('scheduled_jobs').select('id, job_type, status, run_at').eq('client_id', clientId).order('run_at', { ascending: false }).limit(30),
+      supabase.from('gbp_posts').select('id, status, content, scheduled_date, created_at').eq('client_id', clientId).order('created_at', { ascending: false }).limit(20),
+      supabase.from('client_notes').select('id, note, created_at').eq('client_id', clientId).order('created_at', { ascending: false }).limit(30),
     ]);
 
     const items: FeedItem[] = [];

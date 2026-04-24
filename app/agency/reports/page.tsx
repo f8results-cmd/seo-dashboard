@@ -16,7 +16,8 @@ export default async function AgencyReportsPage() {
   const { data: reports } = await supabase
     .from('monthly_reports')
     .select('*, clients(business_name)')
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(200);
 
   const { data: rankings } = await supabase
     .from('keyword_rankings')

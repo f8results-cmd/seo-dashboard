@@ -38,7 +38,9 @@ export default async function AgencyDashboard() {
     { data: activeClients },
     { data: latestJobsRaw },
   ] = await Promise.all([
-    supabase.from('clients').select('*').order('created_at', { ascending: false }),
+    supabase.from('clients')
+      .select('id, business_name, owner_name, status, health_score, niche, city, state, last_friday_update, onboarding_checklist')
+      .order('created_at', { ascending: false }),
     supabase.from('client_tasks')
       .select('*, clients(business_name)')
       .eq('completed', false)
@@ -55,7 +57,8 @@ export default async function AgencyDashboard() {
     supabase.from('jobs')
       .select('client_id, started_at, status')
       .not('agent_name', 'eq', '_pipeline_failure')
-      .order('started_at', { ascending: false }),
+      .order('started_at', { ascending: false })
+      .limit(1000),
   ]);
 
   const allClients = (clients ?? []) as Client[];

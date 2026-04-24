@@ -144,12 +144,13 @@ export async function GET(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Join latest Friday update per week
+  // Join latest Friday update per week — limit to 20 (one per week, 4 weeks max)
   const { data: fridayUpdates } = await sb
     .from('friday_updates')
     .select('*')
     .eq('client_id', id)
-    .order('sent_at', { ascending: false });
+    .order('sent_at', { ascending: false })
+    .limit(20);
 
   const updatesByWeek: Record<number, unknown> = {};
   for (const fu of (fridayUpdates ?? [])) {
@@ -214,44 +215,54 @@ export async function POST(
     client.can_make_changes ?? false,
   );
 
+  // Pre-compute all week date ranges synchronously, then batch-insert in 2 round trips
+  // instead of 2×N sequential awaits.
+  interface WeekWithDates extends WeekTemplate {
+    starts_on: string;
+    ends_on: string;
+  }
+
   let weekStart = startDate;
-  for (const tpl of templates) {
+  const weeksWithDates: WeekWithDates[] = templates.map(tpl => {
     const weekEnd = nextFriday(weekStart);
+    const entry = { ...tpl, starts_on: isoDate(weekStart), ends_on: isoDate(weekEnd) };
+    weekStart = mondayAfter(weekEnd);
+    return entry;
+  });
 
-    const { data: weekRow, error: weekErr } = await sb
-      .from('client_rollout_weeks')
-      .insert({
-        client_id: id,
-        week_number: tpl.week_number,
-        week_label: tpl.week_label,
-        phase: tpl.phase,
-        starts_on: isoDate(weekStart),
-        ends_on: isoDate(weekEnd),
-      })
-      .select('id')
-      .single();
+  const { data: insertedWeeks, error: weekErr } = await sb
+    .from('client_rollout_weeks')
+    .insert(weeksWithDates.map(w => ({
+      client_id:   id,
+      week_number: w.week_number,
+      week_label:  w.week_label,
+      phase:       w.phase,
+      starts_on:   w.starts_on,
+      ends_on:     w.ends_on,
+    })))
+    .select('id, week_number');
 
-    if (weekErr || !weekRow) {
-      return NextResponse.json({ error: weekErr?.message ?? 'Failed to create week' }, { status: 500 });
-    }
+  if (weekErr || !insertedWeeks) {
+    return NextResponse.json({ error: weekErr?.message ?? 'Failed to create weeks' }, { status: 500 });
+  }
 
-    // is_auto is detected at UI level via item_key prefix ('auto_') — migration 019 adds the column
-    const itemRows = tpl.items.map(item => ({
-      week_id:    weekRow.id,
+  const weekIdByNumber: Record<number, string> = {};
+  for (const w of insertedWeeks) weekIdByNumber[w.week_number] = w.id;
+
+  const allItems = weeksWithDates.flatMap(w =>
+    w.items.map(item => ({
+      week_id:    weekIdByNumber[w.week_number],
       client_id:  id,
       item_key:   item.item_key,
       label:      item.label,
       category:   item.category,
       sort_order: item.sort_order,
-    }));
+    }))
+  );
 
-    const { error: itemErr } = await sb.from('client_rollout_items').insert(itemRows);
-    if (itemErr) {
-      return NextResponse.json({ error: itemErr.message }, { status: 500 });
-    }
-
-    // Advance to next week (Monday after this Friday, then find next Friday)
-    weekStart = mondayAfter(weekEnd);
+  const { error: itemErr } = await sb.from('client_rollout_items').insert(allItems);
+  if (itemErr) {
+    return NextResponse.json({ error: itemErr.message }, { status: 500 });
   }
 
   return NextResponse.json({ message: 'Rollout initialised', weeks_count: templates.length });

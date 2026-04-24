@@ -40,8 +40,10 @@ export default function ClientsPage() {
     const today = new Date().toISOString().split('T')[0];
 
     Promise.all([
-      supabase.from('clients').select('*').order('business_name'),
-      supabase.from('jobs').select('client_id').not('agent_name', 'eq', '_pipeline_failure'),
+      supabase.from('clients')
+        .select('id, business_name, owner_name, status, health_score, niche, city, state, live_url, phone, email')
+        .order('business_name'),
+      supabase.from('jobs').select('client_id').not('agent_name', 'eq', '_pipeline_failure').limit(2000),
       supabase.from('client_tasks').select('client_id, due_date').eq('completed', false).lte('due_date', today),
     ]).then(([{ data: clientData }, { data: jobData }, { data: taskData }]) => {
       setClients((clientData as Client[]) ?? []);
