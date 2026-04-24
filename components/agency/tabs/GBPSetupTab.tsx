@@ -83,8 +83,10 @@ export default function GBPSetupTab({ client }: { client: Client }) {
 
   // ── Read-only data from website_data ─────────────────────────────────────
   const wd = client.website_data as Record<string, unknown> ?? {};
-  const gbpServices = wd.gbp_services as Array<{ name: string; description: string }> | undefined;
   const gbpGuide = wd.gbp_guide as Record<string, unknown> | undefined;
+  // gbp_agent writes to website_data.gbp_services; report_agent writes them inside gbp_guide.services
+  const gbpServices = (wd.gbp_services as Array<{ name: string; description: string }> | undefined)
+    ?? (gbpGuide?.services as Array<{ name: string; description: string }> | undefined);
 
   // Use the agent-generated GBP description (stored at website_data.gbp_guide.description).
   // Fallback chain: gbp_guide.description → agency_notes → empty (never homepage meta).
