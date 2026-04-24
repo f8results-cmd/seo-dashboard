@@ -107,6 +107,7 @@ function SidebarContent({ client }: { client: Client }) {
   }, [client.id, load]);
 
   const lastFailed = jobs.find(j => j.status === 'error');
+  const hasRunning = jobs.some(j => j.status === 'running');
 
   async function runPipeline() {
     setRunning(true); setMsg('');
