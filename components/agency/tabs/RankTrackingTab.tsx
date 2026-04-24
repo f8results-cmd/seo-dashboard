@@ -29,10 +29,10 @@ const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm foc
 
 function validateCoverage(val: string): { value: string; error: string } {
   if (val === '') return { value: '', error: '' };
-  const rounded = Math.round(parseFloat(val));
+  const n = parseFloat(val);
   return {
-    value: rounded.toString(),
-    error: rounded < 0 || rounded > 100 ? 'Enter a percentage between 0 and 100' : '',
+    value: val,
+    error: isNaN(n) || n < 0 || n > 100 ? 'Enter a percentage between 0 and 100' : '',
   };
 }
 
@@ -106,7 +106,7 @@ export default function RankTrackingTab({ clientId }: { clientId: string }) {
       grid_data: { screenshot_url: publicUrl, notes: notes.trim() || undefined, scan_type: scanType },
       average_rank: parseFloat(avgRank),
       top_rank: parseInt(topRank),
-      coverage_percentage: parseInt(coverage),
+      coverage_percentage: parseFloat(coverage),
     });
 
     if (dbError) {
@@ -147,7 +147,7 @@ export default function RankTrackingTab({ clientId }: { clientId: string }) {
         scan_date: editForm.scan_date,
         average_rank: parseFloat(editForm.average_rank),
         top_rank: parseInt(editForm.top_rank),
-        coverage_percentage: parseInt(editForm.coverage_percentage),
+      coverage_percentage: parseFloat(editForm.coverage_percentage),
         grid_data: { ...gd, notes: editForm.notes.trim() || undefined },
       })
       .eq('id', scan.id);
@@ -292,14 +292,14 @@ export default function RankTrackingTab({ clientId }: { clientId: string }) {
                   type="number"
                   min={0}
                   max={100}
-                  step={1}
+                  step={0.01}
                   value={coverage}
                   onChange={e => {
                     const { value, error } = validateCoverage(e.target.value);
                     setCoverage(value);
                     setCoverageError(error);
                   }}
-                  placeholder="e.g. 68"
+                  placeholder="e.g. 68.5"
                   required
                   className={`flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ${coverageError ? 'border-red-400 focus:ring-red-400/30' : 'border-gray-200 focus:ring-[#E8622A]/30'}`}
                 />
@@ -404,7 +404,7 @@ export default function RankTrackingTab({ clientId }: { clientId: string }) {
                             type="number"
                             min={0}
                             max={100}
-                            step={1}
+                            step={0.01}
                             value={editForm.coverage_percentage}
                             onChange={e => {
                               const { value, error } = validateCoverage(e.target.value);

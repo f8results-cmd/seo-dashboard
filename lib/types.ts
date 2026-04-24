@@ -220,7 +220,7 @@ export interface HeatmapResult {
   grid_data: { screenshot_url: string; notes?: string; scan_type?: string };
   average_rank: number;
   top_rank: number;
-  coverage_percentage: number;
+  coverage_percentage: number; // numeric(5,2) — allows decimals e.g. 0.86, 68.5
 }
 
 export interface MonthlyReport {
