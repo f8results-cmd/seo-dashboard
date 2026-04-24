@@ -13,6 +13,7 @@ import PhotosTab           from './tabs/PhotosTab';
 import ReviewsTab          from './tabs/ReviewsTab';
 import BacklinksTab        from './tabs/BacklinksTab';
 import AIEditorTab         from './tabs/AIEditorTab';
+import RankTrackingTab     from './tabs/RankTrackingTab';
 
 interface Props {
   client: Client;
@@ -28,8 +29,9 @@ const TABS = [
   { id: 'seo-health', label: 'SEO Health' },
   { id: 'photos',     label: 'Photos' },
   { id: 'reviews',    label: 'Reviews' },
-  { id: 'backlinks',  label: 'Backlinks' },
-  { id: 'ai-editor',  label: 'AI Editor' },
+  { id: 'backlinks',      label: 'Backlinks' },
+  { id: 'rank-tracking',  label: 'Rank Tracking' },
+  { id: 'ai-editor',      label: 'AI Editor' },
 ];
 
 function renderTabContent(tabId: string, client: Client, onRefresh?: () => void) {
@@ -42,9 +44,10 @@ function renderTabContent(tabId: string, client: Client, onRefresh?: () => void)
     case 'seo-health':return <SEOHealthTab client={client} />;
     case 'photos':    return <PhotosTab client={client} onUpdate={onRefresh} />;
     case 'reviews':   return <ReviewsTab client={client} />;
-    case 'backlinks': return <BacklinksTab client={client} />;
-    case 'ai-editor': return <AIEditorTab client={client} />;
-    default:          return null;
+    case 'backlinks':     return <BacklinksTab client={client} />;
+    case 'rank-tracking': return <RankTrackingTab clientId={client.id} />;
+    case 'ai-editor':     return <AIEditorTab client={client} />;
+    default:              return null;
   }
 }
 

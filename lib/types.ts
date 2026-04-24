@@ -322,7 +322,8 @@ export type Database = {
       deliverables:    { Row: Deliverable;    Insert: Partial<Deliverable>;    Update: Partial<Deliverable> };
       scheduled_jobs:  { Row: ScheduledJob;  Insert: Partial<ScheduledJob>;  Update: Partial<ScheduledJob> };
       review_responses:{ Row: ReviewResponse;Insert: Partial<ReviewResponse>;Update: Partial<ReviewResponse> };
-      rank_tracking:   { Row: RankTracking;  Insert: Partial<RankTracking>;  Update: Partial<RankTracking> };
+      rank_tracking:    { Row: RankTracking;   Insert: Partial<RankTracking>;   Update: Partial<RankTracking> };
+      heatmap_results:  { Row: HeatmapResult; Insert: Partial<HeatmapResult>; Update: Partial<HeatmapResult> };
       gbp_posts:       { Row: GbpPost;       Insert: Partial<GbpPost>;       Update: Partial<GbpPost> };
       monthly_reports: { Row: MonthlyReport; Insert: Partial<MonthlyReport>; Update: Partial<MonthlyReport> };
       client_tasks:    { Row: ClientTask;    Insert: Partial<ClientTask>;    Update: Partial<ClientTask> };
