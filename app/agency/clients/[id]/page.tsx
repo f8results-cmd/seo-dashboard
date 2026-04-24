@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, RefreshCw, Pencil, User, Phone, Mail, Send } from 'lucide-react';
+import { ArrowLeft, ExternalLink, RefreshCw, Pencil, User, Phone, Mail, Send, Copy, Check } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { calcHealthScore, calcOnboardingPct } from '@/lib/health';
 import { formatNiche } from '@/lib/utils';
@@ -31,6 +31,13 @@ export default function ClientDetailPage() {
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [gbpPostCount, setGbpPostCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  function copy(text: string, field: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 1500);
+  }
 
   const supabase = createClient();
 
@@ -128,6 +135,9 @@ export default function ClientDetailPage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-wrap mb-1">
               <h1 className="text-2xl font-bold text-gray-900">{client.business_name}</h1>
+              <button onClick={() => copy(client.business_name, 'name')} className="text-gray-300 hover:text-gray-500 transition-colors" title="Copy business name">
+                {copiedField === 'name' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+              </button>
               <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_STYLES[client.status] ?? 'bg-gray-100 text-gray-500'}`}>
                 {client.status.charAt(0).toUpperCase() + client.status.slice(1)}
               </span>
@@ -148,32 +158,41 @@ export default function ClientDetailPage() {
             {(client.owner_name || client.phone || client.email) && (
               <div className="flex items-center gap-2 mt-2 text-sm text-gray-500 flex-wrap">
                 {client.owner_name && (
-                  <>
-                    <span className="flex items-center gap-1">
-                      <User className="w-3.5 h-3.5 text-gray-400" />
-                      {client.owner_name}
-                    </span>
-                  </>
+                  <span className="flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-gray-400" />
+                    {client.owner_name}
+                    <button onClick={() => copy(client.owner_name!, 'owner')} className="text-gray-300 hover:text-gray-500 transition-colors" title="Copy name">
+                      {copiedField === 'owner' ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </span>
                 )}
                 {client.owner_name && (client.phone || client.email) && (
                   <span className="text-gray-300 select-none">|</span>
                 )}
                 {client.phone && (
-                  <>
+                  <span className="flex items-center gap-1">
                     <a href={`tel:${client.phone}`} className="flex items-center gap-1 hover:text-gray-700 transition-colors">
                       <Phone className="w-3.5 h-3.5 text-gray-400" />
                       {client.phone}
                     </a>
-                  </>
+                    <button onClick={() => copy(client.phone!, 'phone')} className="text-gray-300 hover:text-gray-500 transition-colors" title="Copy phone">
+                      {copiedField === 'phone' ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </span>
                 )}
                 {client.phone && client.email && (
                   <span className="text-gray-300 select-none">|</span>
                 )}
                 {client.email && (
-                  <a href={`mailto:${client.email}`} className="flex items-center gap-1 hover:text-gray-700 transition-colors">
-                    <Mail className="w-3.5 h-3.5 text-gray-400" />
-                    {client.email}
-                  </a>
+                  <span className="flex items-center gap-1">
+                    <a href={`mailto:${client.email}`} className="flex items-center gap-1 hover:text-gray-700 transition-colors">
+                      <Mail className="w-3.5 h-3.5 text-gray-400" />
+                      {client.email}
+                    </a>
+                    <button onClick={() => copy(client.email!, 'email')} className="text-gray-300 hover:text-gray-500 transition-colors" title="Copy email">
+                      {copiedField === 'email' ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+                    </button>
+                  </span>
                 )}
                 {client.email && (
                   <>
