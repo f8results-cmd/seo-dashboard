@@ -15,8 +15,6 @@ import BacklinksTab        from './tabs/BacklinksTab';
 import AIEditorTab         from './tabs/AIEditorTab';
 import RankTrackingTab     from './tabs/RankTrackingTab';
 import FridayUpdateTab     from './tabs/FridayUpdateTab';
-import TodoTab             from './tabs/TodoTab';
-
 interface Props {
   client: Client;
   onRefresh?: () => void;
@@ -35,7 +33,6 @@ const TABS = [
   { id: 'rank-tracking', label: 'Rank Tracking' },
   { id: 'ai-editor',   label: 'AI Editor' },
   { id: 'friday',      label: 'Friday Updates' },
-  { id: 'todo',        label: 'To Do' },
 ];
 
 function renderTabContent(tabId: string, client: Client, onRefresh?: () => void) {
@@ -52,7 +49,6 @@ function renderTabContent(tabId: string, client: Client, onRefresh?: () => void)
     case 'rank-tracking': return <RankTrackingTab clientId={client.id} />;
     case 'ai-editor':     return <AIEditorTab client={client} />;
     case 'friday':        return <FridayUpdateTab client={client} />;
-    case 'todo':          return <TodoTab client={client} />;
     default:              return null;
   }
 }

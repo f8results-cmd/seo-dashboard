@@ -96,13 +96,20 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
   }
 
   async function toggleItem(item: RolloutItem) {
-    if (isAutoItem(item)) return;
+    // Optimistic update — flip immediately so it feels instant
+    const newCompleted = !item.completed;
+    setWeeks(prev => prev.map(w => ({
+      ...w,
+      items: w.items.map(i => i.id === item.id
+        ? { ...i, completed: newCompleted, completed_at: newCompleted ? new Date().toISOString() : null }
+        : i),
+    })));
     setSavingItem(item.id);
     try {
       const res = await fetch(`/api/clients/${client.id}/rollout/items/${item.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ completed: !item.completed }),
+        body: JSON.stringify({ completed: newCompleted }),
       });
       const data = await res.json();
       if (data.item) {
@@ -292,11 +299,10 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
                             {/* Checkbox */}
                             <button
                               onClick={() => toggleItem(item)}
-                              disabled={isAutoItem(item) || savingItem === item.id}
-                              title={isAutoItem(item) ? 'Auto-completed by pipeline' : undefined}
-                              className={`mt-0.5 flex-shrink-0 transition-opacity ${
-                                isAutoItem(item) ? 'cursor-default opacity-50' : 'cursor-pointer hover:opacity-70'
-                              } ${savingItem === item.id ? 'opacity-40' : ''}`}
+                              disabled={savingItem === item.id}
+                              className={`mt-0.5 flex-shrink-0 transition-opacity cursor-pointer hover:opacity-70 ${
+                                savingItem === item.id ? 'opacity-40' : ''
+                              }`}
                             >
                               {item.completed
                                 ? <CheckSquare className="w-4 h-4 text-green-500" />

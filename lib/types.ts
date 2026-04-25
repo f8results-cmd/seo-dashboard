@@ -33,9 +33,11 @@ export interface ClientPhotos {
 }
 
 export interface OnboardingChecklist {
-  ghl_created?:       boolean;
-  gbp_connected?:     boolean;
-  first_update_sent?: boolean;
+  ghl_created?:         boolean;
+  gbp_connected?:       boolean;
+  first_update_sent?:   boolean;
+  // Website progress stage
+  website_build_status?: 'to_be_built' | 'being_built' | 'being_reviewed' | 'live';
   // Staff delivery checklist (26 tasks)
   checklist?: Partial<Record<StaffChecklistKey, boolean>>;
   // Per-task metadata: assigned_to + due_date

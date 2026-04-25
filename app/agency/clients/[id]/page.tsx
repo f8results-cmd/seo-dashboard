@@ -10,6 +10,7 @@ import { formatNiche } from '@/lib/utils';
 import ClientDetailTabs from '@/components/agency/ClientDetailTabs';
 import HealthScore from '@/components/agency/HealthScore';
 import PhaseTracker from '@/components/agency/PhaseTracker';
+import WebsiteStatusBar from '@/components/agency/WebsiteStatusBar';
 import PipelineSidebar from '@/components/agency/PipelineSidebar';
 import NotesSidebar from '@/components/agency/NotesSidebar';
 import type { Client, Deliverable } from '@/lib/types';
@@ -242,6 +243,9 @@ export default function ClientDetailPage() {
 
       {/* Phase tracker */}
       <PhaseTracker clientId={id} />
+
+      {/* Website status bar */}
+      <WebsiteStatusBar client={client} onUpdate={load} />
 
       {/* Agency notes warning — shown when notes are missing or too short */}
       {(!client.agency_notes || client.agency_notes.trim().length < 100) && (
