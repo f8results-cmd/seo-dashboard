@@ -141,6 +141,10 @@ export interface Client {
   hours: BusinessHours | null;
   // Photos
   photo_drive_url: string | null;
+  // Manual GBP setup fields (migration 017 in seo-platform)
+  manual_services: string | null;
+  target_suburbs: string[] | null;
+  competitor_research_files: Array<{ url: string; name: string; uploaded_at: string }> | null;
 }
 
 export interface Job {

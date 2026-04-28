@@ -7,6 +7,7 @@ import { ArrowLeft, ExternalLink, RefreshCw, Pencil, User, Phone, Mail, Send, Co
 import { createClient } from '@/lib/supabase/client';
 import { calcHealthScore, calcOnboardingPct } from '@/lib/health';
 import { formatNiche } from '@/lib/utils';
+import { getSetupStatus } from '@/lib/setupStatus';
 import ClientDetailTabs from '@/components/agency/ClientDetailTabs';
 import HealthScore from '@/components/agency/HealthScore';
 import PhaseTracker from '@/components/agency/PhaseTracker';
@@ -121,6 +122,7 @@ export default function ClientDetailPage() {
 
   const healthScore = calcHealthScore(client, deliverables, gbpPostCount);
   const { pct: onboardPct, complete: onboardComplete, total: onboardTotal } = calcOnboardingPct(client, deliverables, gbpPostCount);
+  const setupStatus = getSetupStatus(client);
 
   return (
     <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
@@ -141,6 +143,13 @@ export default function ClientDetailPage() {
               </button>
               <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_STYLES[client.status] ?? 'bg-gray-100 text-gray-500'}`}>
                 {client.status.charAt(0).toUpperCase() + client.status.slice(1)}
+              </span>
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                setupStatus.color === 'green' ? 'bg-green-100 text-green-700' :
+                setupStatus.color === 'amber' ? 'bg-amber-100 text-amber-700' :
+                'bg-red-100 text-red-600'
+              }`}>
+                {setupStatus.color === 'green' ? '✓' : setupStatus.color === 'amber' ? '⚠' : '✗'} {setupStatus.label}
               </span>
             </div>
             <div className="flex items-center gap-3 text-sm text-gray-500 flex-wrap">

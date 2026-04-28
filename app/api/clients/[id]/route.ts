@@ -8,6 +8,7 @@ const ALLOWED_CLIENT_FIELDS = new Set([
   'staff_checklist', 'website_data', 'photos', 'manages_website', 'can_make_changes',
   'last_friday_update', 'gbp_post_count', 'gbp_primary_category', 'gbp_secondary_categories',
   'primary_keywords', 'suburb_pages', 'has_ghl', 'rollout_is_auto',
+  'agency_notes', 'manual_services', 'target_suburbs', 'competitor_research_files',
 ]);
 
 export async function PATCH(

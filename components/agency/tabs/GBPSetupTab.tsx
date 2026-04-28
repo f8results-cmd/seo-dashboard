@@ -1,44 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { ChevronDown, ChevronRight, Upload, X, AlertTriangle, Check, Play, Loader2, FileText, Image } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { getSetupValidation } from '@/lib/setupStatus';
 import type { Client } from '@/lib/types';
 
-function GBPSetupSkeleton() {
-  return (
-    <div className="p-6 space-y-4">
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="border border-gray-200 rounded-xl overflow-hidden animate-pulse">
-          <div className="px-5 py-4 bg-gray-50 flex items-center justify-between">
-            <div className="h-4 bg-gray-200 rounded w-40" />
-            <div className="h-4 bg-gray-200 rounded w-4" />
-          </div>
-          <div className="px-5 py-4 space-y-2">
-            <div className="h-4 bg-gray-200 rounded w-3/4" />
-            <div className="h-4 bg-gray-200 rounded w-1/2" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+const RAILWAY = 'https://figure8-seo-platform-production.up.railway.app';
 
-function CopyBtn({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  function copy() {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-  return (
-    <button onClick={copy} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-1 border border-gray-200 rounded">
-      {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-      {copied ? 'Copied' : 'Copy'}
-    </button>
-  );
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+function Section({
+  title, children, defaultOpen = true, badge,
+}: {
+  title: string; children: React.ReactNode; defaultOpen?: boolean; badge?: React.ReactNode;
+}) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden">
@@ -46,122 +22,368 @@ function Section({ title, children, defaultOpen = true }: { title: string; child
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
       >
-        <span className="font-semibold text-gray-900 text-sm">{title}</span>
-        {open ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-gray-900 text-sm">{title}</span>
+          {badge}
+        </div>
+        {open
+          ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
+          : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
       </button>
       {open && <div className="px-5 py-4 space-y-3">{children}</div>}
     </div>
   );
 }
 
-export default function GBPSetupTab({ client }: { client: Client }) {
-  const [mounted, setMounted] = useState(false);
+function SaveBtn({
+  dirty, saving, onSave, saved,
+}: {
+  dirty: boolean; saving: boolean; onSave: () => void; saved: boolean;
+}) {
+  if (!dirty && !saved) return null;
+  return (
+    <button
+      onClick={onSave}
+      disabled={saving || !dirty}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors disabled:opacity-60 ${
+        saved && !dirty
+          ? 'bg-green-100 text-green-700 border border-green-200'
+          : 'bg-[#E8622A] text-white hover:bg-[#d05520]'
+      }`}
+    >
+      {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : saved && !dirty ? <Check className="w-3 h-3" /> : null}
+      {saving ? 'Saving…' : saved && !dirty ? 'Saved' : 'Save'}
+    </button>
+  );
+}
 
-  // ── Secondary categories state ────────────────────────────────────────────
-  const [categories, setCategories] = useState<string[]>([]);
-  const [catsLoading, setCatsLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
-  const [newName, setNewName] = useState('');
-  const [regenerating, setRegenerating] = useState(false);
-  const [regenMsg, setRegenMsg] = useState('');
-  const [regenError, setRegenError] = useState('');
+// ── Category autocomplete ─────────────────────────────────────────────────────
 
-  useEffect(() => {
-    setMounted(true);
-    fetch(`/api/clients/${client.id}/categories`)
-      .then(r => r.json())
-      .then(data => {
-        setCategories(data.categories ?? []);
-        setCatsLoading(false);
-      })
-      .catch(() => setCatsLoading(false));
-  }, [client.id]);
+function CategoryInput({
+  value, onChange, label, placeholder,
+}: {
+  value: string; onChange: (v: string) => void; label: string; placeholder: string;
+}) {
+  const [query, setQuery] = useState(value);
+  const [results, setResults] = useState<string[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [inTaxonomy, setInTaxonomy] = useState<boolean | null>(null);
+  const debounce = useRef<ReturnType<typeof setTimeout>>();
 
-  if (!mounted) return <GBPSetupSkeleton />;
+  useEffect(() => { setQuery(value); }, [value]);
 
-  // ── Read-only data from website_data ─────────────────────────────────────
-  const wd = client.website_data as Record<string, unknown> ?? {};
-  const gbpGuide = wd.gbp_guide as Record<string, unknown> | undefined;
-  // gbp_agent writes to website_data.gbp_services; report_agent writes them inside gbp_guide.services
-  const gbpServices = (wd.gbp_services as Array<{ name: string; description: string }> | undefined)
-    ?? (gbpGuide?.services as Array<{ name: string; description: string }> | undefined);
-
-  // Use the agent-generated GBP description (stored at website_data.gbp_guide.description).
-  // Fallback chain: gbp_guide.description → agency_notes → empty (never homepage meta).
-  const description = ((gbpGuide?.description as string) ?? client.agency_notes ?? '').slice(0, 750);
-  const primaryCat = client.gbp_primary_category ?? client.niche ?? '—';
-
-  const photoChecklist = [
-    { label: 'Logo (250×250px min)',        done: !!client.photos?.logo },
-    { label: 'Cover photo (1080×608px)',    done: !!client.photos?.cover },
-    { label: 'Exterior / vehicle / equipment', done: !!client.photos?.exterior },
-    { label: 'Owner / team photo',          done: !!client.photos?.owner },
-    { label: 'Work in progress #1',         done: !!client.photos?.work1 },
-    { label: 'Work in progress #2',         done: !!client.photos?.work2 },
-    { label: 'Before photo',                done: !!client.photos?.before },
-    { label: 'After photo',                 done: !!client.photos?.after },
-  ];
-  const photosUploaded = photoChecklist.filter(p => p.done).length;
-
-  // ── Category helpers ──────────────────────────────────────────────────────
-
-  function move(index: number, direction: -1 | 1) {
-    const next = index + direction;
-    if (next < 0 || next >= categories.length) return;
-    const updated = [...categories];
-    [updated[index], updated[next]] = [updated[next], updated[index]];
-    setCategories(updated);
-    setDirty(true);
-  }
-
-  function removeCategory(index: number) {
-    setCategories(prev => prev.filter((_, i) => i !== index));
-    setDirty(true);
-  }
-
-  function addCategory() {
-    const trimmed = newName.trim();
-    if (!trimmed || categories.includes(trimmed)) { setNewName(''); return; }
-    setCategories(prev => [...prev, trimmed]);
-    setNewName('');
-    setDirty(true);
-  }
-
-  async function saveCategories() {
-    setSaving(true);
-    setSaveMsg('');
+  const search = useCallback(async (q: string) => {
+    if (!q.trim() || q.length < 2) { setResults([]); setShowDropdown(false); return; }
     try {
-      const res = await fetch(`/api/clients/${client.id}/categories`, {
+      const res = await fetch(`${RAILWAY}/api/gbp-categories/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const matches: string[] = Array.isArray(data)
+        ? data.slice(0, 10)
+        : (Array.isArray(data?.results) ? data.results.slice(0, 10) : []);
+      setResults(matches);
+      setShowDropdown(matches.length > 0);
+      setInTaxonomy(matches.some(m => m.toLowerCase() === q.trim().toLowerCase()));
+    } catch {
+      // network error — silently skip
+    }
+  }, []);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value;
+    setQuery(v);
+    onChange(v);
+    setInTaxonomy(null);
+    clearTimeout(debounce.current);
+    debounce.current = setTimeout(() => search(v), 300);
+  }
+
+  function select(match: string) {
+    setQuery(match);
+    onChange(match);
+    setInTaxonomy(true);
+    setResults([]);
+    setShowDropdown(false);
+  }
+
+  return (
+    <div className="relative">
+      <label className="block text-xs text-gray-500 mb-1">{label}</label>
+      <input
+        type="text"
+        value={query}
+        onChange={handleChange}
+        onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+        onFocus={() => { if (query.length >= 2 && results.length > 0) setShowDropdown(true); }}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30"
+      />
+      {showDropdown && results.length > 0 && (
+        <ul className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+          {results.map((r, i) => (
+            <li key={i}>
+              <button
+                type="button"
+                onMouseDown={() => select(r)}
+                className="w-full px-3 py-2 text-sm text-left hover:bg-[#E8622A]/5 hover:text-[#E8622A] transition-colors"
+              >
+                {r}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {query.length > 2 && inTaxonomy === false && (
+        <p className="flex items-center gap-1 text-xs text-amber-600 mt-1">
+          <AlertTriangle className="w-3 h-3 shrink-0" />
+          Not in taxonomy — verify it exists in your GBP picker
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── File icon helper ──────────────────────────────────────────────────────────
+
+function FileIcon({ path }: { path: string }) {
+  const ext = path.split('.').pop()?.toLowerCase() ?? '';
+  if (['png', 'jpg', 'jpeg', 'webp'].includes(ext)) return <Image className="w-4 h-4 text-blue-400" />;
+  return <FileText className="w-4 h-4 text-gray-400" />;
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export default function GBPSetupTab({ client }: { client: Client }) {
+  const supabase = createClient();
+
+  // ── Section 1: Competitor research files ─────────────────────────────────
+  type ResearchFile = { url: string; name: string; uploaded_at: string };
+  const [files, setFiles] = useState<ResearchFile[]>(client.competitor_research_files ?? []);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { setUploadError('File must be under 10MB'); return; }
+    setUploading(true);
+    setUploadError('');
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `competitor-research/${client.id}/${Date.now()}_${safeName}`;
+      const { error: upErr } = await supabase.storage.from('client-files').upload(path, file);
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from('client-files').getPublicUrl(path);
+      const entry: ResearchFile = { url: urlData.publicUrl, name: file.name, uploaded_at: new Date().toISOString() };
+      const newFiles = [...files, entry];
+      setFiles(newFiles);
+      await fetch(`/api/clients/${client.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ categories }),
+        body: JSON.stringify({ competitor_research_files: newFiles }),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? 'Save failed');
-      setDirty(false);
-      setSaveMsg('Saved');
-      setTimeout(() => setSaveMsg(''), 2500);
     } catch (err: unknown) {
-      setSaveMsg(err instanceof Error ? err.message : 'Save failed');
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
-      setSaving(false);
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   }
 
-  async function regenerate() {
-    setRegenerating(true);
-    setRegenError('');
-    setRegenMsg('');
+  async function removeFile(url: string) {
+    const newFiles = files.filter(f => f.url !== url);
+    setFiles(newFiles);
+    await fetch(`/api/clients/${client.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ competitor_research_files: newFiles }),
+    });
+  }
+
+  // ── Section 2: GBP Categories ─────────────────────────────────────────────
+  const [primary, setPrimary] = useState(client.gbp_primary_category ?? '');
+  const initSec = client.gbp_secondary_categories ?? [];
+  const [sec1, setSec1] = useState(initSec[0] ?? '');
+  const [sec2, setSec2] = useState(initSec[1] ?? '');
+  const [sec3, setSec3] = useState(initSec[2] ?? '');
+  const [sec4, setSec4] = useState(initSec[3] ?? '');
+  const [catDirty, setCatDirty] = useState(false);
+  const [catSaving, setCatSaving] = useState(false);
+  const [catSaved, setCatSaved] = useState(false);
+
+  function markCatDirty() { setCatDirty(true); setCatSaved(false); }
+
+  async function saveCategories() {
+    setCatSaving(true);
     try {
-      const res = await fetch(`/api/clients/${client.id}/categories/regenerate`, { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? 'Research failed');
-      setRegenMsg('Research started — categories will be written in ~30 seconds. Reload this page to see results.');
-    } catch (err: unknown) {
-      setRegenError(err instanceof Error ? err.message : 'Research failed');
+      const secondaries = [sec1, sec2, sec3, sec4].map(s => s.trim()).filter(Boolean);
+      const updatedWd = { ...(client.website_data ?? {}), gbp_manual_override: true };
+      await Promise.all([
+        fetch(`/api/clients/${client.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gbp_primary_category: primary.trim(), website_data: updatedWd }),
+        }),
+        fetch(`/api/clients/${client.id}/categories`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ categories: secondaries }),
+        }),
+      ]);
+      setCatDirty(false);
+      setCatSaved(true);
+    } catch {
+      // save error — user will see the dirty state
     } finally {
-      setRegenerating(false);
+      setCatSaving(false);
+    }
+  }
+
+  // ── Section 3: Services ───────────────────────────────────────────────────
+  const [services, setServices] = useState(client.manual_services ?? '');
+  const [svcDirty, setSvcDirty] = useState(false);
+  const [svcSaving, setSvcSaving] = useState(false);
+  const [svcSaved, setSvcSaved] = useState(false);
+
+  async function saveServices() {
+    setSvcSaving(true);
+    try {
+      await fetch(`/api/clients/${client.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ manual_services: services }),
+      });
+      setSvcDirty(false);
+      setSvcSaved(true);
+    } catch {
+      //
+    } finally {
+      setSvcSaving(false);
+    }
+  }
+
+  // ── Section 4: Agency Notes ───────────────────────────────────────────────
+  const [notes, setNotes] = useState(client.agency_notes ?? '');
+  const [notesDirty, setNotesDirty] = useState(false);
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
+
+  async function saveNotes() {
+    setNotesSaving(true);
+    try {
+      await fetch(`/api/clients/${client.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agency_notes: notes }),
+      });
+      setNotesDirty(false);
+      setNotesSaved(true);
+    } catch {
+      //
+    } finally {
+      setNotesSaving(false);
+    }
+  }
+
+  // ── Section 5: Target Suburbs ─────────────────────────────────────────────
+  const [suburbs, setSuburbs] = useState<string[]>(client.target_suburbs ?? []);
+  const [suburbInput, setSuburbInput] = useState('');
+  const [suburbDirty, setSuburbDirty] = useState(false);
+  const [suburbSaving, setSuburbSaving] = useState(false);
+  const [suburbSaved, setSuburbSaved] = useState(false);
+
+  function addSuburb(raw: string) {
+    const tags = raw.split(/[,\n]+/).map(s => s.trim()).filter(s => s && !suburbs.includes(s));
+    if (!tags.length) { setSuburbInput(''); return; }
+    const next = [...suburbs, ...tags];
+    setSuburbs(next);
+    setSuburbInput('');
+    setSuburbDirty(true);
+    setSuburbSaved(false);
+  }
+
+  function removeSuburb(tag: string) {
+    setSuburbs(prev => prev.filter(s => s !== tag));
+    setSuburbDirty(true);
+    setSuburbSaved(false);
+  }
+
+  async function saveSuburbs() {
+    setSuburbSaving(true);
+    try {
+      await fetch(`/api/clients/${client.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_suburbs: suburbs }),
+      });
+      setSuburbDirty(false);
+      setSuburbSaved(true);
+    } catch {
+      //
+    } finally {
+      setSuburbSaving(false);
+    }
+  }
+
+  // ── Section 6: Run Pipeline ───────────────────────────────────────────────
+  // Use a snapshot of client enriched with local edits for validation
+  const clientSnapshot: Client = {
+    ...client,
+    gbp_primary_category: primary.trim() || null,
+    gbp_secondary_categories: [sec1, sec2, sec3, sec4].map(s => s.trim()).filter(Boolean),
+    manual_services: services,
+    agency_notes: notes,
+    target_suburbs: suburbs,
+  };
+  const validation = getSetupValidation(clientSnapshot);
+
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [pipelineStatus, setPipelineStatus] = useState('');
+  const [pipelineError, setPipelineError] = useState('');
+  const pollRef = useRef<ReturnType<typeof setInterval>>();
+
+  useEffect(() => () => clearInterval(pollRef.current), []);
+
+  async function runPipeline() {
+    if (!validation.allValid) return;
+    setPipelineRunning(true);
+    setPipelineError('');
+    setPipelineStatus('Starting pipeline…');
+    try {
+      const res = await fetch(`${RAILWAY}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: client.id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.detail ?? err?.error ?? `HTTP ${res.status}`);
+      }
+      setPipelineStatus('Pipeline started — polling for updates…');
+      pollRef.current = setInterval(async () => {
+        try {
+          const sr = await fetch(`${RAILWAY}/status/${client.id}`);
+          if (!sr.ok) return;
+          const sd = await sr.json();
+          const stage: string = sd?.stage ?? sd?.status ?? '';
+          const done = ['complete', 'done', 'finished', 'error', 'failed'].some(s => stage.toLowerCase().includes(s));
+          if (stage) setPipelineStatus(stage);
+          if (done) {
+            clearInterval(pollRef.current);
+            setPipelineRunning(false);
+            if (stage.toLowerCase().includes('error') || stage.toLowerCase().includes('failed')) {
+              setPipelineError(`Pipeline ended with status: ${stage}`);
+            }
+          }
+        } catch {
+          // polling error — keep going
+        }
+      }, 10_000);
+    } catch (err: unknown) {
+      setPipelineRunning(false);
+      setPipelineError(err instanceof Error ? err.message : 'Pipeline start failed');
+      setPipelineStatus('');
     }
   }
 
@@ -170,219 +392,254 @@ export default function GBPSetupTab({ client }: { client: Client }) {
   return (
     <div className="p-6 space-y-4">
 
-      {/* 1 — Categories */}
-      <Section title="1. Categories">
-        {/* Primary */}
+      {/* ── 1: Competitor Research Upload ─────────────────────────────────── */}
+      <Section title="1. Competitor Research" badge={
+        files.length > 0
+          ? <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{files.length} file{files.length !== 1 ? 's' : ''}</span>
+          : null
+      }>
+        <p className="text-xs text-gray-500">
+          Upload screenshots, CSVs, or PDFs from competitor research. These are saved to Supabase Storage for reference.
+        </p>
+
+        {/* Existing files */}
+        {files.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {files.map(f => {
+              const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
+              const isImage = ['png', 'jpg', 'jpeg', 'webp'].includes(ext);
+              return (
+                <div key={f.url} className="relative group border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
+                  {isImage ? (
+                    <img src={f.url} alt={f.name} className="w-full h-24 object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-24 gap-1">
+                      <FileIcon path={f.name} />
+                      <span className="text-xs text-gray-500 px-2 text-center truncate w-full">{f.name}</span>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => removeFile(f.url)}
+                    className="absolute top-1 right-1 bg-white/80 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remove"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                  <a href={f.url} target="_blank" rel="noopener noreferrer"
+                    className="absolute inset-0 opacity-0" aria-label={`Open ${f.name}`} />
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Upload button */}
         <div>
-          <p className="text-xs text-gray-500 mb-1">Primary Category</p>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-800 bg-gray-50 border border-gray-200 rounded px-3 py-1.5 flex-1">{primaryCat}</span>
-            <CopyBtn text={primaryCat} />
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".png,.jpg,.jpeg,.webp,.pdf,.csv"
+            className="hidden"
+            onChange={handleFileUpload}
+          />
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-2 px-4 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-[#E8622A] hover:text-[#E8622A] transition-colors disabled:opacity-60"
+          >
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {uploading ? 'Uploading…' : 'Upload file (PNG, JPG, WebP, PDF, CSV · max 10MB)'}
+          </button>
+          {uploadError && (
+            <p className="text-xs text-red-600 mt-1">{uploadError}</p>
+          )}
+        </div>
+      </Section>
+
+      {/* ── 2: GBP Categories ─────────────────────────────────────────────── */}
+      <Section title="2. GBP Categories" badge={
+        validation.hasPrimary && validation.hasSecondary
+          ? <Check className="w-3.5 h-3.5 text-green-500" />
+          : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+      }>
+        <div className="space-y-3">
+          <CategoryInput
+            label="Primary Category"
+            placeholder="e.g. Car detailing service"
+            value={primary}
+            onChange={v => { setPrimary(v); markCatDirty(); }}
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <CategoryInput label="Secondary 1" placeholder="Secondary category…" value={sec1} onChange={v => { setSec1(v); markCatDirty(); }} />
+            <CategoryInput label="Secondary 2" placeholder="Secondary category…" value={sec2} onChange={v => { setSec2(v); markCatDirty(); }} />
+            <CategoryInput label="Secondary 3" placeholder="Secondary category…" value={sec3} onChange={v => { setSec3(v); markCatDirty(); }} />
+            <CategoryInput label="Secondary 4" placeholder="Secondary category…" value={sec4} onChange={v => { setSec4(v); markCatDirty(); }} />
+          </div>
+          <div className="flex justify-end">
+            <SaveBtn dirty={catDirty} saving={catSaving} saved={catSaved} onSave={saveCategories} />
           </div>
         </div>
+      </Section>
 
-        {/* Secondary — interactive */}
+      {/* ── 3: Services ───────────────────────────────────────────────────── */}
+      <Section title="3. Services" badge={
+        validation.hasServices
+          ? <Check className="w-3.5 h-3.5 text-green-500" />
+          : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+      }>
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs text-gray-500">Secondary Categories</p>
-            <div className="flex items-center gap-2">
-              {dirty && (
-                <button
-                  onClick={saveCategories}
-                  disabled={saving}
-                  className="px-3 py-1 bg-[#E8622A] text-white text-xs font-medium rounded hover:bg-[#d05520] transition-colors disabled:opacity-60"
-                >
-                  {saving ? 'Saving…' : 'Save'}
-                </button>
-              )}
-              {saveMsg && (
-                <span className={`text-xs font-medium ${saveMsg === 'Saved' ? 'text-green-600' : 'text-red-600'}`}>
-                  {saveMsg}
-                </span>
-              )}
-            </div>
+          <p className="text-xs text-gray-500 mb-2">
+            List the client&apos;s services — used by the pipeline to generate GBP service entries. Minimum 50 characters.
+          </p>
+          <textarea
+            value={services}
+            onChange={e => { setServices(e.target.value); setSvcDirty(true); setSvcSaved(false); }}
+            rows={6}
+            placeholder="e.g. Paint correction, ceramic coating, window tinting, interior detail, engine bay cleaning…"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30 resize-y"
+          />
+          <div className="flex items-center justify-between mt-1">
+            <span className={`text-xs ${services.trim().length < 50 ? 'text-amber-600' : 'text-gray-400'}`}>
+              {services.trim().length} chars {services.trim().length < 50 ? `(need ${50 - services.trim().length} more)` : ''}
+            </span>
+            <SaveBtn dirty={svcDirty} saving={svcSaving} saved={svcSaved} onSave={saveServices} />
           </div>
+        </div>
+      </Section>
 
-          {catsLoading ? (
-            <div className="space-y-1.5">
-              {[...Array(3)].map((_, i) => <div key={i} className="h-9 bg-gray-100 rounded animate-pulse" />)}
-            </div>
-          ) : categories.length === 0 ? (
-            <p className="text-xs text-gray-400 py-2">No secondary categories yet. Add below or use Regenerate.</p>
-          ) : (
-            <ul className="space-y-1.5">
-              {categories.map((cat, i) => (
-                <li key={`${cat}-${i}`} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded px-3 py-2">
-                  {/* Up/down */}
-                  <div className="flex flex-col gap-0 flex-shrink-0">
-                    <button type="button" onClick={() => move(i, -1)} disabled={i === 0}
-                      className="text-gray-300 hover:text-gray-600 disabled:opacity-20 disabled:cursor-not-allowed leading-none"
-                      aria-label="Move up">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
-                      </svg>
-                    </button>
-                    <button type="button" onClick={() => move(i, 1)} disabled={i === categories.length - 1}
-                      className="text-gray-300 hover:text-gray-600 disabled:opacity-20 disabled:cursor-not-allowed leading-none"
-                      aria-label="Move down">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                  </div>
-                  <span className="text-xs text-gray-400 w-4 text-center flex-shrink-0">{i + 1}</span>
-                  <span className="flex-1 text-sm text-gray-800">{cat}</span>
-                  <CopyBtn text={cat} />
-                  <button type="button" onClick={() => removeCategory(i)}
-                    className="text-gray-300 hover:text-red-500 transition-colors flex-shrink-0 ml-1" aria-label="Remove">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+      {/* ── 4: Agency Notes ───────────────────────────────────────────────── */}
+      <Section title="4. Agency Notes" badge={
+        validation.hasNotes
+          ? <Check className="w-3.5 h-3.5 text-green-500" />
+          : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+      }>
+        <div>
+          <p className="text-xs text-gray-500 mb-2">
+            Internal notes: target keywords, suburb coverage, USPs, differentiators. Used as pipeline context. Minimum 100 characters.
+          </p>
+          <textarea
+            value={notes}
+            onChange={e => { setNotes(e.target.value); setNotesDirty(true); setNotesSaved(false); }}
+            rows={6}
+            placeholder="e.g. Targets eastern suburbs of Adelaide. Differentiator is 24-hour mobile service. Focus on ceramic coating…"
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30 resize-y"
+          />
+          <div className="flex items-center justify-between mt-1">
+            <span className={`text-xs ${notes.trim().length < 100 ? 'text-amber-600' : 'text-gray-400'}`}>
+              {notes.trim().length} chars {notes.trim().length < 100 ? `(need ${100 - notes.trim().length} more)` : ''}
+            </span>
+            <SaveBtn dirty={notesDirty} saving={notesSaving} saved={notesSaved} onSave={saveNotes} />
+          </div>
+        </div>
+      </Section>
+
+      {/* ── 5: Target Suburbs ─────────────────────────────────────────────── */}
+      <Section title="5. Target Suburbs" badge={
+        validation.hasSuburbs
+          ? <Check className="w-3.5 h-3.5 text-green-500" />
+          : <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+      }>
+        <div>
+          <p className="text-xs text-gray-500 mb-2">
+            Add suburbs the client wants to rank in. Press Enter or comma to add multiple.
+          </p>
+
+          {/* Tag list */}
+          {suburbs.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {suburbs.map(s => (
+                <span key={s} className="flex items-center gap-1 text-xs bg-[#1a2744] text-white px-2.5 py-1 rounded-full">
+                  {s}
+                  <button
+                    type="button"
+                    onClick={() => removeSuburb(s)}
+                    className="hover:text-red-300 transition-colors ml-0.5"
+                    aria-label={`Remove ${s}`}
+                  >
+                    <X className="w-3 h-3" />
                   </button>
-                </li>
+                </span>
               ))}
-            </ul>
+            </div>
           )}
 
-          {/* Add */}
-          <div className="flex gap-2 mt-2">
+          <div className="flex gap-2">
             <input
               type="text"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategory(); } }}
-              placeholder="Add category…"
-              className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30"
+              value={suburbInput}
+              onChange={e => setSuburbInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ',') {
+                  e.preventDefault();
+                  addSuburb(suburbInput);
+                }
+              }}
+              placeholder="Type suburb, press Enter or comma…"
+              className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30"
             />
-            <button type="button" onClick={addCategory} disabled={!newName.trim()}
-              className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded hover:bg-gray-200 transition-colors disabled:opacity-40">
+            <button
+              type="button"
+              onClick={() => addSuburb(suburbInput)}
+              disabled={!suburbInput.trim()}
+              className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-40"
+            >
               Add
             </button>
           </div>
 
-          {/* Regenerate */}
-          <div className="mt-3 flex items-center justify-between">
-            <p className="text-xs text-gray-400">Ask Claude to suggest categories for this niche + location</p>
-            <button type="button" onClick={regenerate} disabled={regenerating}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 text-xs font-medium rounded hover:border-gray-400 transition-colors disabled:opacity-60">
-              {regenerating && (
-                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-              )}
-              {regenerating ? 'Generating…' : 'Regenerate'}
-            </button>
-          </div>
-
-          {regenError && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mt-2">{regenError}</p>
-          )}
-
-          {regenMsg && (
-            <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2 mt-2">{regenMsg}</p>
-          )}
-
-          {categories.length > 0 && !dirty && (
-            <div className="mt-2">
-              <CopyBtn text={[primaryCat, ...categories].join('\n')} />
-            </div>
-          )}
-        </div>
-      </Section>
-
-      {/* 2 — Business Description */}
-      <Section title="2. Business Description">
-        <div className="relative">
-          <p className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded p-3 whitespace-pre-wrap">{description || 'No description yet — run GBP agent to generate.'}</p>
-          <div className={`text-xs mt-1 ${description.length > 750 ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
-            {description.length} / 750 characters{description.length > 750 && ' — too long!'}
+          <div className="flex justify-end mt-2">
+            <SaveBtn dirty={suburbDirty} saving={suburbSaving} saved={suburbSaved} onSave={saveSuburbs} />
           </div>
         </div>
-        {description && <CopyBtn text={description} />}
       </Section>
 
-      {/* 3 — GBP Services */}
-      <Section title="3. GBP Services (30)">
-        {gbpServices && gbpServices.length > 0 ? (
-          <div className="space-y-2">
-            {gbpServices.map((svc, i) => (
-              <div key={i} className="flex items-start gap-2 bg-gray-50 border border-gray-200 rounded p-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800">{svc.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{svc.description}</p>
-                </div>
-                <CopyBtn text={`${svc.name}\n${svc.description}`} />
-              </div>
-            ))}
-            <CopyBtn text={gbpServices.map(s => `${s.name}: ${s.description}`).join('\n\n')} />
-          </div>
-        ) : (
-          <p className="text-sm text-gray-400">No GBP services yet — run GBP agent.</p>
-        )}
-      </Section>
-
-      {/* 4 — Photos Checklist */}
-      <Section title={`4. Photos Checklist (${photosUploaded}/${photoChecklist.length} uploaded)`}>
-        <div className="space-y-2">
-          {photoChecklist.map((item, i) => (
-            <div key={i} className="flex items-center gap-2.5">
-              <span className={`w-4 h-4 rounded-full flex-shrink-0 ${item.done ? 'bg-green-500' : 'bg-gray-200'}`} />
-              <span className={`text-sm ${item.done ? 'text-gray-500 line-through' : 'text-gray-800'}`}>{item.label}</span>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* 5 — Hours */}
-      <Section title="5. Hours">
-        <div className="flex items-center gap-2 text-sm text-gray-700">
-          <input type="checkbox" className="rounded" />
-          <span>Hours set in Google Business Profile</span>
-        </div>
-      </Section>
-
-      {/* 6 — GHL Connection Steps */}
-      <Section title="6. GHL Connection Steps">
-        <ol className="space-y-2 text-sm text-gray-700 list-decimal list-inside">
-          <li>Log into your GHL sub-account</li>
-          <li>Go to <strong>Reputation → Google Business Profile</strong></li>
-          <li>Click <strong>Connect</strong> and sign in with Google</li>
-          <li>Once connected, posts publish automatically every Wednesday</li>
-        </ol>
-        <div className="flex items-center gap-2 mt-2">
-          <input type="checkbox" className="rounded" />
-          <span className="text-sm text-gray-700">GBP connected in GHL</span>
-        </div>
-      </Section>
-
-      {/* 7 — Weekly Photo Reminder */}
-      <Section title="7. Weekly Photo Reminder">
-        <div className="bg-blue-50 border border-blue-200 rounded p-4 text-sm text-blue-800 space-y-2">
-          <p className="font-medium">Geotagging instructions for new photos:</p>
-          <p><strong>iPhone:</strong> Location Services must be ON for Camera app. Go to Settings → Privacy → Location Services → Camera → While Using.</p>
-          <p><strong>Android:</strong> Open Camera app → Settings → toggle Location tags ON.</p>
-          <p className="text-xs text-blue-600 mt-2">Geotagged photos help associate your business location with search results.</p>
-        </div>
-      </Section>
-
-      {/* 8 — What Figure 8 Handles */}
-      <Section title="8. What Figure 8 Handles">
-        <ul className="space-y-2 text-sm text-gray-700">
+      {/* ── 6: Run Pipeline ───────────────────────────────────────────────── */}
+      <Section title="6. Run Pipeline" defaultOpen={true}>
+        {/* Validation checklist */}
+        <div className="space-y-1.5">
           {[
-            'Weekly GBP post published every Wednesday automatically',
-            'Citation building via LeadSnap (50+ directories)',
-            'Website live on Vercel with SEO-optimised pages',
-            'Monthly SEO report delivered to you',
-            'Rank tracking and heatmap monitoring',
-            'Review response drafting (coming soon)',
-          ].map((item, i) => (
-            <li key={i} className="flex items-start gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#E8622A] mt-2 flex-shrink-0" />
-              {item}
-            </li>
+            { label: 'Primary GBP category set', ok: validation.hasPrimary },
+            { label: 'At least one secondary category', ok: validation.hasSecondary },
+            { label: 'Services entered (50+ chars)', ok: validation.hasServices },
+            { label: 'Agency notes entered (100+ chars)', ok: validation.hasNotes },
+            { label: 'Target suburbs added', ok: validation.hasSuburbs },
+          ].map(({ label, ok }) => (
+            <div key={label} className="flex items-center gap-2 text-sm">
+              {ok
+                ? <Check className="w-4 h-4 text-green-500 shrink-0" />
+                : <X className="w-4 h-4 text-red-400 shrink-0" />}
+              <span className={ok ? 'text-gray-700' : 'text-gray-400'}>{label}</span>
+            </div>
           ))}
-        </ul>
+        </div>
+
+        {!validation.allValid && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            Complete all fields above before running the pipeline.
+          </p>
+        )}
+
+        <div className="flex items-center gap-3 pt-1">
+          <button
+            onClick={runPipeline}
+            disabled={!validation.allValid || pipelineRunning}
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#1a2744] text-white text-sm font-medium rounded-lg hover:bg-[#243461] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {pipelineRunning
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Play className="w-4 h-4" />}
+            {pipelineRunning ? 'Running…' : 'Run Pipeline'}
+          </button>
+          {pipelineStatus && (
+            <span className="text-sm text-gray-600">{pipelineStatus}</span>
+          )}
+        </div>
+
+        {pipelineError && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            {pipelineError}
+          </p>
+        )}
       </Section>
     </div>
   );
