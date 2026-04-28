@@ -184,10 +184,10 @@ function buildGhlCsv(posts: GbpPost[], client: Pick<Client, 'live_url' | 'websit
     return [
       postAt,
       p.content,
-      link, // link (OGmetaUrl)
-      '',   // imageUrls
-      '',   // gifUrl
-      '',   // videoUrls
+      link,               // link (OGmetaUrl)
+      p.image_url || '',  // imageUrls
+      '',                 // gifUrl
+      '',                 // videoUrls
     ];
   });
 

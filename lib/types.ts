@@ -212,6 +212,7 @@ export interface GbpPost {
   ghl_post_id: string | null;
   status: PostStatus;
   created_at: string;
+  image_url?: string | null;
 }
 
 export interface HeatmapResult {
