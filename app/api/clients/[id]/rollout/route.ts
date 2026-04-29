@@ -42,33 +42,46 @@ interface WeekTemplate {
 
 function buildWeekTemplates(_managesWebsite: boolean, _canMakeChanges: boolean): WeekTemplate[] {
   const week1Items = [
-    // Auto items
-    { item_key: 'auto_pipeline_run',      label: 'Pipeline run',                          category: 'Pipeline',  sort_order: 1,  is_auto: true },
-    { item_key: 'auto_serpapi_research',  label: 'SerpAPI competitor research',            category: 'Pipeline',  sort_order: 2,  is_auto: true },
-    { item_key: 'auto_backlinks_gen',     label: 'Backlink opportunities generated',       category: 'Pipeline',  sort_order: 3,  is_auto: true },
-    { item_key: 'auto_seo_baseline',      label: 'SEO Health baseline recorded',           category: 'Pipeline',  sort_order: 4,  is_auto: true },
-    // GBP manual
-    { item_key: 'gbp_manager_access',     label: 'Get GBP manager access from owner',      category: 'GBP',       sort_order: 5,  is_auto: false },
-    { item_key: 'gbp_primary_category',   label: 'Set primary GBP category',               category: 'GBP',       sort_order: 6,  is_auto: false },
-    { item_key: 'gbp_secondary_cats',     label: 'Add 3-5 secondary GBP categories',        category: 'GBP',       sort_order: 7,  is_auto: false },
-    { item_key: 'gbp_description',        label: 'Update business description',            category: 'GBP',       sort_order: 8,  is_auto: false },
-    { item_key: 'gbp_services',           label: 'Add 15-20 services with descriptions',   category: 'GBP',       sort_order: 9,  is_auto: false },
-    { item_key: 'gbp_hours',              label: 'Set business hours (all 7 days)',         category: 'GBP',       sort_order: 10, is_auto: false },
-    { item_key: 'gbp_website_url',        label: 'Add website URL',                        category: 'GBP',       sort_order: 11, is_auto: false },
-    { item_key: 'gbp_phone_format',       label: 'Verify phone number format',             category: 'GBP',       sort_order: 12, is_auto: false },
-    { item_key: 'gbp_photos_10',          label: 'Upload 10+ photos',                      category: 'GBP',       sort_order: 13, is_auto: false },
-    { item_key: 'gbp_first_post',         label: 'Publish first GBP post',                 category: 'GBP',       sort_order: 14, is_auto: false },
-    // GHL manual
-    { item_key: 'ghl_subaccount',         label: 'Create GHL sub-account',                 category: 'GHL',       sort_order: 15, is_auto: false },
-    { item_key: 'ghl_connect_gbp',        label: 'Connect GBP to GHL',                     category: 'GHL',       sort_order: 16, is_auto: false },
-    { item_key: 'ghl_location_id',        label: 'Copy ghl_location_id into Supabase',     category: 'GHL',       sort_order: 17, is_auto: false },
-    { item_key: 'ghl_api_key',            label: 'Copy ghl_api_key into Supabase',         category: 'GHL',       sort_order: 18, is_auto: false },
-    { item_key: 'ghl_social_planner_url', label: 'Paste GHL Social Planner URL into dashboard', category: 'GHL', sort_order: 19, is_auto: false },
-    { item_key: 'ghl_posts_csv',          label: 'Upload 52 posts CSV to GHL',             category: 'GHL',       sort_order: 20, is_auto: false },
-    { item_key: 'ghl_schedule_posts',     label: 'Schedule posts',                         category: 'GHL',       sort_order: 21, is_auto: false },
-    // Client comms
-    { item_key: 'client_welcome_email',   label: 'Send welcome email',                     category: 'Client',    sort_order: 22, is_auto: false },
-    { item_key: 'client_onboarding_wkt',  label: 'Send onboarding walkthrough',            category: 'Client',    sort_order: 23, is_auto: false },
+    // ── STEP 1: Pre-pipeline prep in the dashboard ────────────────────────
+    { item_key: 'gbp_manager_access',     label: 'Get GBP manager access from owner',                       category: 'Setup',    sort_order: 1,  is_auto: false },
+    { item_key: 'gbp_research_comp',      label: 'Research competitor categories (check top 3-5 in Maps)',   category: 'Setup',    sort_order: 2,  is_auto: false },
+    { item_key: 'gbp_upload_research',    label: 'Upload competitor research screenshots → GBP Setup tab',  category: 'Setup',    sort_order: 3,  is_auto: false },
+    { item_key: 'gbp_enter_categories',   label: 'Enter primary + secondary categories → GBP Setup tab',    category: 'Setup',    sort_order: 4,  is_auto: false },
+    { item_key: 'gbp_enter_services',     label: 'Enter services list → GBP Setup tab (50+ chars)',         category: 'Setup',    sort_order: 5,  is_auto: false },
+    { item_key: 'gbp_enter_agency_notes', label: 'Enter agency notes → GBP Setup tab (100+ chars)',         category: 'Setup',    sort_order: 6,  is_auto: false },
+    { item_key: 'gbp_enter_suburbs',      label: 'Enter target suburbs → GBP Setup tab',                   category: 'Setup',    sort_order: 7,  is_auto: false },
+    { item_key: 'gbp_run_pipeline',       label: 'Click Run Pipeline in GBP Setup tab',                     category: 'Setup',    sort_order: 8,  is_auto: false },
+
+    // ── STEP 2: Pipeline runs (auto) ──────────────────────────────────────
+    { item_key: 'auto_gbp_posts_gen',     label: '52 GBP posts generated by pipeline',                      category: 'Pipeline', sort_order: 9,  is_auto: true },
+    { item_key: 'auto_website_built',     label: 'Website pages built by pipeline',                         category: 'Pipeline', sort_order: 10, is_auto: true },
+    { item_key: 'auto_serpapi_research',  label: 'SerpAPI competitor research complete',                    category: 'Pipeline', sort_order: 11, is_auto: true },
+    { item_key: 'auto_backlinks_gen',     label: 'Backlink opportunities generated',                        category: 'Pipeline', sort_order: 12, is_auto: true },
+    { item_key: 'auto_seo_baseline',      label: 'SEO Health baseline recorded',                            category: 'Pipeline', sort_order: 13, is_auto: true },
+
+    // ── STEP 3: Update Google Business Profile manually ───────────────────
+    { item_key: 'gbp_primary_category',   label: 'Set primary category in Google Business Profile',         category: 'GBP',      sort_order: 14, is_auto: false },
+    { item_key: 'gbp_secondary_cats',     label: 'Add secondary categories in Google Business Profile',     category: 'GBP',      sort_order: 15, is_auto: false },
+    { item_key: 'gbp_description',        label: 'Update GBP description (copy from pipeline output)',      category: 'GBP',      sort_order: 16, is_auto: false },
+    { item_key: 'gbp_services',           label: 'Add 30 services in Google (from pipeline output)',        category: 'GBP',      sort_order: 17, is_auto: false },
+    { item_key: 'gbp_hours',              label: 'Set business hours (all 7 days)',                         category: 'GBP',      sort_order: 18, is_auto: false },
+    { item_key: 'gbp_website_url',        label: 'Add website URL to GBP',                                 category: 'GBP',      sort_order: 19, is_auto: false },
+    { item_key: 'gbp_phone_format',       label: 'Verify phone number format',                             category: 'GBP',      sort_order: 20, is_auto: false },
+    { item_key: 'gbp_photos_10',          label: 'Upload 10+ geotagged photos',                            category: 'GBP',      sort_order: 21, is_auto: false },
+    { item_key: 'gbp_first_post',         label: 'Publish first GBP post',                                 category: 'GBP',      sort_order: 22, is_auto: false },
+
+    // ── STEP 4: GHL setup ─────────────────────────────────────────────────
+    { item_key: 'ghl_subaccount',         label: 'Create GHL sub-account',                                 category: 'GHL',      sort_order: 23, is_auto: false },
+    { item_key: 'ghl_connect_gbp',        label: 'Connect GBP to GHL',                                    category: 'GHL',      sort_order: 24, is_auto: false },
+    { item_key: 'ghl_location_id',        label: 'Copy ghl_location_id into Supabase',                    category: 'GHL',      sort_order: 25, is_auto: false },
+    { item_key: 'ghl_api_key',            label: 'Copy ghl_api_key into Supabase',                        category: 'GHL',      sort_order: 26, is_auto: false },
+    { item_key: 'ghl_social_planner_url', label: 'Paste GHL Social Planner URL into dashboard',            category: 'GHL',      sort_order: 27, is_auto: false },
+    { item_key: 'ghl_posts_csv',          label: 'Upload 52 posts CSV to GHL',                            category: 'GHL',      sort_order: 28, is_auto: false },
+    { item_key: 'ghl_schedule_posts',     label: 'Schedule all posts in GHL',                             category: 'GHL',      sort_order: 29, is_auto: false },
+
+    // ── Client comms ──────────────────────────────────────────────────────
+    { item_key: 'client_welcome_email',   label: 'Send welcome email',                                     category: 'Client',   sort_order: 30, is_auto: false },
+    { item_key: 'client_onboarding_wkt',  label: 'Send onboarding walkthrough',                            category: 'Client',   sort_order: 31, is_auto: false },
   ];
 
   const week2Items = [
@@ -120,7 +133,7 @@ function buildWeekTemplates(_managesWebsite: boolean, _canMakeChanges: boolean):
   ];
 
   return [
-    { week_number: 1, week_label: 'Week 1: GBP Setup + Optimisation',   phase: 'gbp_setup',  items: week1Items },
+    { week_number: 1, week_label: 'Week 1: Research → Pipeline → GBP Profile',  phase: 'gbp_setup',  items: week1Items },
     { week_number: 2, week_label: 'Week 2: Citations + Website Live',    phase: 'website',    items: week2Items },
     { week_number: 3, week_label: 'Week 3: Reviews + Backlinks Start',   phase: 'citations',  items: week3Items },
     { week_number: 4, week_label: 'Week 4: Tracking + Optimisation',     phase: 'ongoing',    items: week4Items },

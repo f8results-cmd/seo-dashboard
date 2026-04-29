@@ -32,6 +32,7 @@ interface RolloutWeek {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
+  Setup:      'bg-sky-100 text-sky-700',
   Pipeline:   'bg-slate-100 text-slate-600',
   GBP:        'bg-blue-100 text-blue-700',
   GHL:        'bg-violet-100 text-violet-700',
@@ -47,7 +48,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 // Fixed category display order within a week
 const CATEGORY_ORDER = [
-  'Pipeline', 'GBP', 'GHL', 'Client', 'Citations', 'Website', 'AI Editor',
+  'Setup', 'Pipeline', 'GBP', 'GHL', 'Client', 'Citations', 'Website', 'AI Editor',
   'Reviews', 'Backlinks', 'Measurement', 'SEO',
 ];
 
