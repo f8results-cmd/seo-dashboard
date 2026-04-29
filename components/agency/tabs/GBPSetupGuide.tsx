@@ -79,11 +79,13 @@ export default function GBPSetupGuide({ client }: { client: Client }) {
   // ── Data sources ──────────────────────────────────────────────────────
   const primary = client.gbp_primary_category ?? '';
   const secondaries: string[] = client.gbp_secondary_categories ?? [];
-  const description: string = (gbpGuide.description as string) ?? '';
-  const services: string = client.manual_services ?? '';
+  // Canonical description path: website_data.gbp_description (written by GBPAgent).
+  // Fall back to gbp_guide.description for records where the old path is the only one populated.
+  const description: string =
+    (wd.gbp_description as string) || (gbpGuide.description as string) || '';
   const suburbs: string[] = client.target_suburbs ?? [];
 
-  // GBP services list from pipeline output
+  // GBP services list from pipeline output (website_data.gbp_services, written by GBPAgent)
   const gbpServices = (wd.gbp_services as Array<{ name: string; description: string }>) ?? [];
 
   const noCategoryData = !primary && secondaries.length === 0;
@@ -174,41 +176,19 @@ export default function GBPSetupGuide({ client }: { client: Client }) {
         )}
       </GuideSection>
 
-      {/* ── 3: Services ───────────────────────────────────────────────── */}
+      {/* ── 3: GBP Services (pipeline output) ────────────────────────── */}
       <GuideSection
-        title="3. Services (manual_services)"
+        title={gbpServices.length > 0 ? `3. GBP Services (${gbpServices.length})` : '3. GBP Services'}
         badge={
-          services
-            ? <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">{services.trim().split('\n').filter(Boolean).length} lines</span>
-            : <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Not set</span>
+          gbpServices.length > 0
+            ? <span className="text-xs text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">paste into GBP</span>
+            : <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">Not generated</span>
         }
+        defaultOpen={gbpServices.length > 0}
       >
-        {!services ? (
-          <p className="text-sm text-gray-400">No services entered. Fill in the Starter Info tab.</p>
+        {gbpServices.length === 0 ? (
+          <p className="text-sm text-gray-400">No GBP services yet. Run the pipeline to generate them.</p>
         ) : (
-          <div className="space-y-2">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-              {services.trim().split('\n').filter(Boolean).map((line, i) => (
-                <div key={i} className="flex items-start gap-2 py-0.5">
-                  <span className="text-gray-400 text-xs mt-0.5 shrink-0">{i + 1}.</span>
-                  <span className="text-sm text-gray-800">{line.replace(/^[-•*\d.)\s]+/, '').trim()}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end">
-              <CopyBtn text={services} label="Copy services" />
-            </div>
-          </div>
-        )}
-      </GuideSection>
-
-      {/* ── 3b: GBP Services (pipeline output) ───────────────────────── */}
-      {gbpServices.length > 0 && (
-        <GuideSection
-          title={`4. GBP Services — pipeline output (${gbpServices.length})`}
-          badge={<span className="text-xs text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">paste into GBP</span>}
-          defaultOpen={false}
-        >
           <div className="space-y-2">
             {gbpServices.map((svc, i) => (
               <div key={i} className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded p-3">
@@ -226,12 +206,12 @@ export default function GBPSetupGuide({ client }: { client: Client }) {
               />
             </div>
           </div>
-        </GuideSection>
-      )}
+        )}
+      </GuideSection>
 
       {/* ── 4: Target Suburbs ─────────────────────────────────────────── */}
       <GuideSection
-        title="5. Target Suburbs"
+        title="4. Target Suburbs"
         badge={
           suburbs.length > 0
             ? <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">{suburbs.length} suburbs</span>
@@ -256,7 +236,7 @@ export default function GBPSetupGuide({ client }: { client: Client }) {
 
       {/* ── 5: Posts Schedule ─────────────────────────────────────────── */}
       <GuideSection
-        title={`6. GBP Posts Schedule (${postsLoading ? '…' : posts.length})`}
+        title={`5. GBP Posts Schedule (${postsLoading ? '…' : posts.length})`}
         badge={
           !postsLoading && posts.length > 0
             ? <span className="text-xs text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full">{posts.length} posts</span>
