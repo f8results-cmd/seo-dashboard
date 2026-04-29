@@ -220,7 +220,20 @@ export default function GBPSetupTab({ client }: { client: Client }) {
     setCatSaving(true);
     try {
       const secondaries = [sec1, sec2, sec3, sec4].map(s => s.trim()).filter(Boolean);
-      const updatedWd = { ...(client.website_data ?? {}), gbp_manual_override: true };
+      // gbp_categories must be a dict (not a list) so the override flag survives agent runs.
+      // content_agent writes to gbp_category_names instead, leaving this key alone.
+      const existingGbpCats = (client.website_data as Record<string, unknown>)?.gbp_categories;
+      const gbpCategoriesDict: Record<string, unknown> = {
+        ...(typeof existingGbpCats === 'object' && !Array.isArray(existingGbpCats) && existingGbpCats !== null
+          ? (existingGbpCats as Record<string, unknown>)
+          : {}),
+        manual_override: true,
+      };
+      const updatedWd = {
+        ...(client.website_data ?? {}),
+        gbp_manual_override: true,        // root-level flag (backward compat)
+        gbp_categories: gbpCategoriesDict, // authoritative dict with override flag
+      };
       await Promise.all([
         fetch(`/api/clients/${client.id}`, {
           method: 'PATCH',
@@ -251,10 +264,14 @@ export default function GBPSetupTab({ client }: { client: Client }) {
   async function saveServices() {
     setSvcSaving(true);
     try {
+      const updatedWd = {
+        ...(client.website_data ?? {}),
+        manual_services: { manual_override: true },
+      };
       await fetch(`/api/clients/${client.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ manual_services: services }),
+        body: JSON.stringify({ manual_services: services, website_data: updatedWd }),
       });
       setSvcDirty(false);
       setSvcSaved(true);
@@ -274,10 +291,14 @@ export default function GBPSetupTab({ client }: { client: Client }) {
   async function saveNotes() {
     setNotesSaving(true);
     try {
+      const updatedWd = {
+        ...(client.website_data ?? {}),
+        agency_notes: { manual_override: true },
+      };
       await fetch(`/api/clients/${client.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agency_notes: notes }),
+        body: JSON.stringify({ agency_notes: notes, website_data: updatedWd }),
       });
       setNotesDirty(false);
       setNotesSaved(true);
@@ -314,10 +335,14 @@ export default function GBPSetupTab({ client }: { client: Client }) {
   async function saveSuburbs() {
     setSuburbSaving(true);
     try {
+      const updatedWd = {
+        ...(client.website_data ?? {}),
+        target_suburbs: { manual_override: true },
+      };
       await fetch(`/api/clients/${client.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target_suburbs: suburbs }),
+        body: JSON.stringify({ target_suburbs: suburbs, website_data: updatedWd }),
       });
       setSuburbDirty(false);
       setSuburbSaved(true);

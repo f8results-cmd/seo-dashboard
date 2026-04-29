@@ -145,10 +145,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return { slug: slugify(name), category_name: name };
     });
 
-    // Sync gbp_categories flat list and gbp_category_pages in website_data
+    // Preserve gbp_categories as a dict containing the manual_override flag.
+    // content_agent writes category names to gbp_category_names (not this key).
+    // Never write a list here — that would destroy the manual_override flag.
+    const existingGbpCats = wd.gbp_categories;
+    const gbpCategoriesDict: Record<string, unknown> = {
+      ...(typeof existingGbpCats === 'object' && !Array.isArray(existingGbpCats) && existingGbpCats !== null
+        ? (existingGbpCats as Record<string, unknown>)
+        : {}),
+      manual_override: true,
+    };
+
     updates['website_data'] = {
       ...wd,
-      gbp_categories: clean,
+      gbp_categories: gbpCategoriesDict,
+      gbp_category_names: clean,  // list form goes here, not in gbp_categories
       gbp_category_pages: newPages,
     };
   }
