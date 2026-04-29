@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronDown, ChevronRight, Upload, X, AlertTriangle, Check, Play, Loader2, FileText, Image } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { getSetupValidation } from '@/lib/setupStatus';
+import GBPSetupGuide from './GBPSetupGuide';
 import type { Client } from '@/lib/types';
 
 const RAILWAY = 'https://figure8-seo-platform-production.up.railway.app';
@@ -155,6 +156,7 @@ function FileIcon({ path }: { path: string }) {
 
 export default function GBPSetupTab({ client }: { client: Client }) {
   const supabase = createClient();
+  const [activeTab, setActiveTab] = useState<'starter' | 'guide'>('starter');
 
   // ── Section 1: Competitor research files ─────────────────────────────────
   type ResearchFile = { url: string; name: string; uploaded_at: string };
@@ -390,7 +392,27 @@ export default function GBPSetupTab({ client }: { client: Client }) {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-4">
+    <div>
+      {/* Subtab bar */}
+      <div className="flex border-b border-gray-200 px-6 pt-4 gap-1">
+        {(['starter', 'guide'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 -mb-px ${
+              activeTab === tab
+                ? 'border-[#E8622A] text-[#E8622A] bg-white'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            {tab === 'starter' ? 'Starter Info' : 'Setup Guide'}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'guide' && <GBPSetupGuide client={client} />}
+
+      {activeTab === 'starter' && <div className="p-6 space-y-4">
 
       {/* ── 1: Competitor Research Upload ─────────────────────────────────── */}
       <Section title="1. Competitor Research" badge={
@@ -641,6 +663,7 @@ export default function GBPSetupTab({ client }: { client: Client }) {
           </p>
         )}
       </Section>
+    </div>}
     </div>
   );
 }

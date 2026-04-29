@@ -116,7 +116,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: fetchErr.message }, { status: 500 });
   }
 
-  const updates: Record<string, unknown> = {};
+  const updates: Record<string, unknown> = {
+    // Always write to the canonical column so the Python agents can read it directly.
+    // This prevents CategoryResearchAgent's idempotency check from seeing 0 secondaries
+    // and running a full SerpAPI research pass that overwrites manual categories.
+    gbp_secondary_categories: clean,
+  };
 
   if (current?.website_data) {
     const wd = current.website_data as Record<string, unknown>;
@@ -140,7 +145,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return { slug: slugify(name), category_name: name };
     });
 
-    // Also sync gbp_categories flat list
+    // Sync gbp_categories flat list and gbp_category_pages in website_data
     updates['website_data'] = {
       ...wd,
       gbp_categories: clean,
