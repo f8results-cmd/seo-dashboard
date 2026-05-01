@@ -320,7 +320,20 @@ export default function GBPSetupTab({ client }: { client: Client }) {
   }
 
   // ── Section 5: Target Suburbs ─────────────────────────────────────────────
-  const [suburbs, setSuburbs] = useState<string[]>(client.target_suburbs ?? []);
+  function coerceSuburb(v: unknown): string {
+    if (typeof v === 'string') return v;
+    if (v && typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      return typeof o.location === 'string' ? o.location
+        : typeof o.name === 'string' ? o.name
+        : typeof o.suburb === 'string' ? o.suburb
+        : JSON.stringify(v);
+    }
+    return '';
+  }
+  const [suburbs, setSuburbs] = useState<string[]>(
+    (client.target_suburbs ?? []).map(coerceSuburb).filter(Boolean)
+  );
   const [suburbInput, setSuburbInput] = useState('');
   const [suburbDirty, setSuburbDirty] = useState(false);
   const [suburbSaving, setSuburbSaving] = useState(false);

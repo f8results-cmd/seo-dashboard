@@ -135,7 +135,12 @@ export default function GBPSetupGuide({ client }: { client: Client }) {
   // Fall back to gbp_guide.description for records where the old path is the only one populated.
   const description: string =
     (wd.gbp_description as string) || (gbpGuide.description as string) || '';
-  const suburbs: string[] = client.target_suburbs ?? [];
+  const suburbs: string[] = (client.target_suburbs ?? []).map(s =>
+    typeof s === 'string' ? s
+      : typeof (s as Record<string, unknown>)?.location === 'string' ? (s as Record<string, unknown>).location as string
+      : typeof (s as Record<string, unknown>)?.name === 'string' ? (s as Record<string, unknown>).name as string
+      : JSON.stringify(s)
+  ).filter(Boolean);
 
   // GBP services list from pipeline output (website_data.gbp_services, written by GBPAgent)
   const gbpServices = (wd.gbp_services as Array<{ name: string; description: string }>) ?? [];
