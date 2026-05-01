@@ -79,7 +79,7 @@ function CategoryInput({
       const res = await fetch(`${RAILWAY}/api/gbp-categories/search?q=${encodeURIComponent(q)}`);
       if (!res.ok) return;
       const data = await res.json();
-      function extractName(item: unknown): string {
+      const extractName = (item: unknown): string => {
         if (typeof item === 'string') return item;
         if (item && typeof item === 'object') {
           const o = item as Record<string, unknown>;
@@ -88,7 +88,7 @@ function CategoryInput({
             : '';
         }
         return '';
-      }
+      };
       const rawItems: unknown[] = Array.isArray(data) ? data.slice(0, 10) : (Array.isArray(data?.results) ? data.results.slice(0, 10) : []);
       const matches: string[] = rawItems.map(extractName).filter(Boolean);
       setResults(matches);
