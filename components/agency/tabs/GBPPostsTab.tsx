@@ -157,14 +157,7 @@ function escapeCsvCell(value: string): string {
   return str;
 }
 
-function getPostLink(client: Pick<Client, 'live_url' | 'website_url'>): string {
-  // Prefer live_url; fall back to website_url only if it's not a vercel.app URL
-  if (client.live_url && client.live_url.trim()) return client.live_url.trim();
-  if (client.website_url && !client.website_url.includes('vercel.app')) return client.website_url.trim();
-  return '';
-}
-
-function buildGhlCsv(posts: GbpPost[], client: Pick<Client, 'live_url' | 'website_url'>): string {
+function buildGhlCsv(posts: GbpPost[]): string {
   // GHL Social Planner — Basic Format, CRLF line endings, no BOM
   // Headers must include parenthetical hints exactly as GHL requires
   const header = [
@@ -176,15 +169,13 @@ function buildGhlCsv(posts: GbpPost[], client: Pick<Client, 'live_url' | 'websit
     'videoUrls',
   ];
 
-  const link = getPostLink(client);
-
   const rows = posts.map((p) => {
     const dt     = p.scheduled_date ? parseISO(p.scheduled_date) : null;
     const postAt = dt ? format(dt, 'yyyy-MM-dd HH:mm:ss') : '';
     return [
       postAt,
       p.content,
-      link,               // link (OGmetaUrl)
+      '',                 // link (OGmetaUrl) — always empty, no website links in posts
       p.image_url || '',  // imageUrls
       '',                 // gifUrl
       '',                 // videoUrls
@@ -337,7 +328,7 @@ export default function GBPPostsTab({ client }: { client: Client }) {
       ? posts.filter(p => idsToExport.includes(p.id))
       : filteredPosts;
     if (!subset.length) return;
-    const csv = buildGhlCsv(subset, client);
+    const csv = buildGhlCsv(subset);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
