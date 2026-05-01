@@ -51,6 +51,51 @@ function GuideSection({
   );
 }
 
+// ── Group services by closest GBP category ───────────────────────────────────
+
+type ServiceItem = { name: string; description: string };
+
+function groupServicesByCategory(
+  services: ServiceItem[],
+  categories: string[],
+): Array<{ category: string; services: ServiceItem[] }> {
+  if (categories.length === 0) return services.length > 0 ? [{ category: '', services }] : [];
+
+  const stopWords = new Set(['and', 'or', 'the', 'a', 'an', 'in', 'on', 'of', 'for', 'to', 'with', 'by']);
+
+  function keywords(str: string): Set<string> {
+    return new Set(
+      str.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 1 && !stopWords.has(w))
+    );
+  }
+
+  const catKeywords = categories.map(cat => ({ cat, words: keywords(cat) }));
+  const groups = new Map<string, ServiceItem[]>();
+  categories.forEach(cat => groups.set(cat, []));
+  groups.set('__other__', []);
+
+  for (const svc of services) {
+    const svcWords = keywords(svc.name + ' ' + svc.description);
+    let bestCat = '__other__';
+    let bestScore = 0;
+    for (const { cat, words } of catKeywords) {
+      let score = 0;
+      words.forEach(w => { if (svcWords.has(w)) score++; });
+      if (score > bestScore) { bestScore = score; bestCat = cat; }
+    }
+    groups.get(bestCat)!.push(svc);
+  }
+
+  const result: Array<{ category: string; services: ServiceItem[] }> = [];
+  for (const cat of categories) {
+    const svcs = groups.get(cat) ?? [];
+    if (svcs.length > 0) result.push({ category: cat, services: svcs });
+  }
+  const others = groups.get('__other__') ?? [];
+  if (others.length > 0) result.push({ category: 'Other Services', services: others });
+  return result;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function GBPSetupGuide({ client }: { client: Client }) {
@@ -87,6 +132,10 @@ export default function GBPSetupGuide({ client }: { client: Client }) {
 
   // GBP services list from pipeline output (website_data.gbp_services, written by GBPAgent)
   const gbpServices = (wd.gbp_services as Array<{ name: string; description: string }>) ?? [];
+
+  // Group services under their closest GBP category heading using keyword overlap
+  const allCategories = [primary, ...secondaries].filter(Boolean);
+  const serviceGroups = groupServicesByCategory(gbpServices, allCategories);
 
   const noCategoryData = !primary && secondaries.length === 0;
   const noDescription = !description;
@@ -189,17 +238,29 @@ export default function GBPSetupGuide({ client }: { client: Client }) {
         {gbpServices.length === 0 ? (
           <p className="text-sm text-gray-400">No GBP services yet. Run the pipeline to generate them.</p>
         ) : (
-          <div className="space-y-2">
-            {gbpServices.map((svc, i) => (
-              <div key={i} className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded p-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800">{svc.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{svc.description}</p>
+          <div className="space-y-4">
+            {serviceGroups.map((group, gi) => (
+              <div key={gi}>
+                {group.category && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">{group.category}</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  {group.services.map((svc, i) => (
+                    <div key={i} className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded p-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800">{svc.name}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{svc.description}</p>
+                      </div>
+                      <CopyBtn text={`${svc.name}\n${svc.description}`} />
+                    </div>
+                  ))}
                 </div>
-                <CopyBtn text={`${svc.name}\n${svc.description}`} />
               </div>
             ))}
-            <div className="flex justify-end">
+            <div className="flex justify-end pt-1">
               <CopyBtn
                 text={gbpServices.map(s => `${s.name}\n${s.description}`).join('\n\n')}
                 label="Copy all"
