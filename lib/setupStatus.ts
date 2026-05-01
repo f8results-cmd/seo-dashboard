@@ -16,7 +16,10 @@ export interface SetupValidation {
 }
 
 export function getSetupValidation(client: Client): SetupValidation {
-  const hasPrimary  = !!client.gbp_primary_category?.trim();
+  // Defensive: DB may return an object instead of a string if the agent wrote structured data.
+  const rawPrimary = client.gbp_primary_category;
+  const primaryStr = typeof rawPrimary === 'string' ? rawPrimary : (rawPrimary ? JSON.stringify(rawPrimary) : '');
+  const hasPrimary  = !!primaryStr.trim();
   const hasSecondary = (client.gbp_secondary_categories?.filter(Boolean).length ?? 0) > 0;
   const hasServices  = (client.manual_services?.trim().length ?? 0) > 50;
   const hasNotes     = (client.agency_notes?.trim().length ?? 0) > 100;

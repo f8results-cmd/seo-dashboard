@@ -123,9 +123,14 @@ export default function GBPSetupGuide({ client }: { client: Client }) {
 
   // ── Data sources ──────────────────────────────────────────────────────
   const primary = typeof client.gbp_primary_category === 'string' ? client.gbp_primary_category : String(client.gbp_primary_category ?? '');
-  const secondaries: string[] = (client.gbp_secondary_categories ?? []).map(cat =>
-    typeof cat === 'string' ? cat : String((cat as unknown as Record<string, unknown>)?.name ?? JSON.stringify(cat))
-  );
+  const secondaries: string[] = (client.gbp_secondary_categories ?? []).map(cat => {
+    if (typeof cat === 'string') return cat;
+    const o = cat as unknown as Record<string, unknown>;
+    // Object shape from agent: {category, location, ...} — extract category first, then name as fallback
+    return typeof o.category === 'string' ? o.category
+      : typeof o.name === 'string' ? o.name
+      : JSON.stringify(cat);
+  });
   // Canonical description path: website_data.gbp_description (written by GBPAgent).
   // Fall back to gbp_guide.description for records where the old path is the only one populated.
   const description: string =

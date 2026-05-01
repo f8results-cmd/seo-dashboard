@@ -219,7 +219,7 @@ export default function CategoriesTab({ client }: Props) {
               <span className="text-xs text-gray-400 w-5 text-center flex-shrink-0">{i + 1}</span>
 
               {/* Name */}
-              <span className="flex-1 text-sm text-gray-800">{cat}</span>
+              <span className="flex-1 text-sm text-gray-800">{String(cat)}</span>
 
               {/* Remove */}
               <button

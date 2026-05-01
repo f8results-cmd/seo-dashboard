@@ -48,7 +48,21 @@ export async function GET(_req: NextRequest, { params }: Params) {
     websiteData = fullData.website_data as Record<string, unknown> | null;
   }
 
-  let categories: string[] = secondaryCategories ?? [];
+  // Defensive: coerce any object entries to strings (agent can write {category, location, ...} objects)
+  function coerceCatArray(arr: unknown[]): string[] {
+    return arr.map(c => {
+      if (typeof c === 'string') return c;
+      if (c && typeof c === 'object') {
+        const o = c as Record<string, unknown>;
+        return typeof o.category === 'string' ? o.category
+          : typeof o.name === 'string' ? o.name
+          : JSON.stringify(c);
+      }
+      return String(c ?? '');
+    }).filter(Boolean);
+  }
+
+  let categories: string[] = secondaryCategories ? coerceCatArray(secondaryCategories as unknown[]) : [];
 
   if (categories.length === 0 && websiteData) {
     // Check website_data.category_research.secondary (written by CategoryResearchAgent)
@@ -74,9 +88,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
     if (cr?.primary) primaryCategory = cr.primary as string;
   }
 
+  // Coerce primary to string as well (defensive, same reason as secondary)
+  const primaryStr: string | null = typeof primaryCategory === 'string' ? primaryCategory
+    : (primaryCategory && typeof primaryCategory === 'object')
+      ? (() => { const o = primaryCategory as unknown as Record<string, unknown>; return typeof o.category === 'string' ? o.category : typeof o.name === 'string' ? o.name : JSON.stringify(primaryCategory); })()
+      : null;
+
   return NextResponse.json({
     categories,
-    gbp_primary_category: primaryCategory,
+    gbp_primary_category: primaryStr,
   });
 }
 

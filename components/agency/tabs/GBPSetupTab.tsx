@@ -204,12 +204,22 @@ export default function GBPSetupTab({ client }: { client: Client }) {
   }
 
   // ── Section 2: GBP Categories ─────────────────────────────────────────────
-  const [primary, setPrimary] = useState(client.gbp_primary_category ?? '');
+  // Defensive coerce: DB can return objects shaped {category, location, ...} instead of strings.
+  // If that happens, extract the `category` key; fall back to JSON so we never store [object Object].
+  function coerceCat(v: unknown): string {
+    if (typeof v === 'string') return v;
+    if (v && typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      return typeof o.category === 'string' ? o.category : JSON.stringify(v);
+    }
+    return '';
+  }
+  const [primary, setPrimary] = useState(coerceCat(client.gbp_primary_category));
   const initSec = client.gbp_secondary_categories ?? [];
-  const [sec1, setSec1] = useState(initSec[0] ?? '');
-  const [sec2, setSec2] = useState(initSec[1] ?? '');
-  const [sec3, setSec3] = useState(initSec[2] ?? '');
-  const [sec4, setSec4] = useState(initSec[3] ?? '');
+  const [sec1, setSec1] = useState(coerceCat(initSec[0]));
+  const [sec2, setSec2] = useState(coerceCat(initSec[1]));
+  const [sec3, setSec3] = useState(coerceCat(initSec[2]));
+  const [sec4, setSec4] = useState(coerceCat(initSec[3]));
   const [catDirty, setCatDirty] = useState(false);
   const [catSaving, setCatSaving] = useState(false);
   const [catSaved, setCatSaved] = useState(false);
