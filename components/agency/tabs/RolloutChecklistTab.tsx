@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, CheckSquare, Square, Zap, StickyNote } from 'lucide-react';
+import { ChevronDown, ChevronRight, CheckSquare, Square, Zap, StickyNote, Inbox } from 'lucide-react';
+import { differenceInDays, parseISO, startOfDay } from 'date-fns';
+import { createClient } from '@/lib/supabase/client';
 import type { Client } from '@/lib/types';
 
 interface RolloutItem {
@@ -52,6 +54,30 @@ const CATEGORY_ORDER = [
   'Reviews', 'Backlinks', 'Measurement', 'SEO',
 ];
 
+function weekUrgency(week: RolloutWeek): 'overdue' | 'due-soon' | 'ok' | 'complete' {
+  if (week.items.length > 0 && week.items.every(i => i.completed)) return 'complete';
+  const today = startOfDay(new Date());
+  const end = parseISO(week.ends_on);
+  const daysLeft = differenceInDays(end, today);
+  if (daysLeft < 0) return 'overdue';
+  if (daysLeft <= 2) return 'due-soon';
+  return 'ok';
+}
+
+const URGENCY_WEEK_HEADER: Record<string, string> = {
+  overdue:  'bg-red-50 border-red-200',
+  'due-soon': 'bg-amber-50 border-amber-100',
+  ok:       'bg-gray-50',
+  complete: 'bg-green-50',
+};
+
+const URGENCY_BADGE: Record<string, string> = {
+  overdue:    'bg-red-100 text-red-700',
+  'due-soon': 'bg-amber-100 text-amber-700',
+  ok:         'bg-orange-50 text-orange-600',
+  complete:   'bg-green-100 text-green-700',
+};
+
 function sortedCategories(items: RolloutItem[]): string[] {
   const presentArr = items.map(i => i.category || 'Other');
   const present = new Set(presentArr);
@@ -69,6 +95,9 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
   const [savingItem, setSavingItem] = useState<string | null>(null);
+  const [weekDraftMsg, setWeekDraftMsg] = useState<string | null>(null);
+
+  const supabase = createClient();
 
   const fetchRollout = useCallback(async () => {
     setLoading(true);
@@ -97,14 +126,15 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
   }
 
   async function toggleItem(item: RolloutItem) {
-    // Optimistic update — flip immediately so it feels instant
     const newCompleted = !item.completed;
-    setWeeks(prev => prev.map(w => ({
+    // Optimistic update
+    const updatedWeeks = weeks.map(w => ({
       ...w,
       items: w.items.map(i => i.id === item.id
         ? { ...i, completed: newCompleted, completed_at: newCompleted ? new Date().toISOString() : null }
         : i),
-    })));
+    }));
+    setWeeks(updatedWeeks);
     setSavingItem(item.id);
     try {
       const res = await fetch(`/api/clients/${client.id}/rollout/items/${item.id}`, {
@@ -118,6 +148,31 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
           ...w,
           items: w.items.map(i => i.id === item.id ? { ...i, ...data.item } : i),
         })));
+      }
+
+      // Auto-draft friday_update if this completion finishes the week
+      if (newCompleted && client.email) {
+        const parentWeek = updatedWeeks.find(w => w.items.some(i => i.id === item.id));
+        if (parentWeek && parentWeek.items.every(i => i.completed)) {
+          const completedLabels = parentWeek.items.map(i => i.label);
+          const body = `Hi ${client.owner_name ?? client.business_name},\n\nGreat news — ${parentWeek.week_label} is now 100% complete!\n\nHere's what was accomplished:\n${completedLabels.map(l => `• ${l}`).join('\n')}\n\nWe'll be in touch with your next update.\n\nBest regards,\nFigure 8 Results`;
+          await supabase.from('approval_queue').insert({
+            client_id:   client.id,
+            action_type: 'friday_update',
+            content_data: {
+              subject:       `${parentWeek.week_label} Complete — SEO Update`,
+              body,
+              to_email:      client.email,
+              business_name: client.business_name,
+              week_number:   parentWeek.week_number,
+              week_label:    parentWeek.week_label,
+              progress_pct:  100,
+              auto_drafted:  true,
+            },
+            status: 'pending',
+          });
+          setWeekDraftMsg(`${parentWeek.week_label} is complete — a client update email has been queued for your approval.`);
+        }
       }
     } finally {
       setSavingItem(null);
@@ -211,6 +266,15 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
         </div>
       </div>
 
+      {/* Week completion auto-draft notification */}
+      {weekDraftMsg && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+          <Inbox className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+          <span className="flex-1">{weekDraftMsg} <a href="/agency/approvals" className="underline font-medium">Review in Approvals →</a></span>
+          <button onClick={() => setWeekDraftMsg(null)} className="text-amber-500 hover:text-amber-700">×</button>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
@@ -240,29 +304,41 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
         const pct        = total > 0 ? Math.round((done / total) * 100) : 0;
         const visibleItems = showIncompleteOnly ? allItems.filter(i => !i.completed) : allItems;
         const categories = sortedCategories(visibleItems);
+        const urgency = weekUrgency(week);
+        const barColor = urgency === 'overdue' ? '#dc2626'
+          : urgency === 'due-soon' ? '#f59e0b'
+          : urgency === 'complete' ? '#16a34a'
+          : '#E8622A';
 
         return (
-          <div key={week.id} className="border border-gray-200 rounded-xl overflow-hidden">
+          <div key={week.id} className={`border rounded-xl overflow-hidden ${
+            urgency === 'overdue' ? 'border-red-200' :
+            urgency === 'due-soon' ? 'border-amber-200' :
+            urgency === 'complete' ? 'border-green-200' :
+            'border-gray-200'
+          }`}>
 
             {/* Week header */}
             <button
               onClick={() => toggleWeek(week.week_number)}
-              className="w-full flex items-center gap-3 px-5 py-4 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+              className={`w-full flex items-center gap-3 px-5 py-4 transition-colors text-left hover:brightness-95 ${URGENCY_WEEK_HEADER[urgency]}`}
             >
               {isExpanded
                 ? <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
                 : <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
               }
               <span className="font-semibold text-gray-900 text-sm flex-1">{week.week_label}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
-                done === total && total > 0
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-orange-50 text-orange-600'
-              }`}>
+              {urgency === 'overdue' && (
+                <span className="text-xs text-red-600 font-medium flex-shrink-0">Overdue</span>
+              )}
+              {urgency === 'due-soon' && (
+                <span className="text-xs text-amber-600 font-medium flex-shrink-0">Due soon</span>
+              )}
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${URGENCY_BADGE[urgency]}`}>
                 {done}/{total}
               </span>
               <div className="w-20 h-1.5 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
-                <div className="h-full bg-[#E8622A] rounded-full" style={{ width: `${pct}%` }} />
+                <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
               </div>
             </button>
 

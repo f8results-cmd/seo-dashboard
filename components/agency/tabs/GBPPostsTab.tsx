@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
-import { ExternalLink, Pencil, X } from 'lucide-react';
+import { ExternalLink, Pencil, X, Sparkles, Inbox } from 'lucide-react';
 import type { Client, GbpPost, PostStatus } from '@/lib/types';
+
+const RAILWAY_URL = process.env.NEXT_PUBLIC_RAILWAY_URL ?? '';
 
 const STATUS_STYLES: Record<PostStatus, string> = {
   pending:   'bg-yellow-100 text-yellow-700',
@@ -236,6 +238,28 @@ export default function GBPPostsTab({ client }: { client: Client }) {
 
   // copy feedback
   const [copiedId, setCopiedId]   = useState<string | null>(null);
+
+  // generate next month posts
+  const [generating, setGenerating] = useState(false);
+  const [genMsg, setGenMsg]         = useState('');
+
+  async function generateNextMonthPosts() {
+    if (!RAILWAY_URL) { setGenMsg('RAILWAY_URL not configured.'); return; }
+    setGenerating(true);
+    setGenMsg('');
+    try {
+      const res = await fetch(`${RAILWAY_URL}/generate-next-month-posts/${clientId}`, { method: 'POST' });
+      if (res.ok) {
+        setGenMsg('4 posts queued for approval — review them in Approvals.');
+      } else {
+        const txt = await res.text();
+        setGenMsg(`Error: ${txt.slice(0, 120)}`);
+      }
+    } catch {
+      setGenMsg('Could not reach backend.');
+    }
+    setGenerating(false);
+  }
 
   const filteredPosts = filter === 'all' ? posts : posts.filter(p => p.status === filter);
   const filteredIds   = filteredPosts.map(p => p.id);
@@ -518,10 +542,33 @@ export default function GBPPostsTab({ client }: { client: Client }) {
         initial={client.gbp_posting_schedule ?? null}
       />
 
+      {/* ── Generate next month banner ── */}
+      {genMsg && (
+        <div className={`text-sm px-4 py-2.5 rounded-lg border flex items-center gap-2
+          ${genMsg.startsWith('Error') || genMsg.startsWith('Could')
+            ? 'bg-red-50 border-red-200 text-red-700'
+            : 'bg-amber-50 border-amber-200 text-amber-800'}`}
+        >
+          <Inbox className="w-4 h-4 shrink-0" />
+          {genMsg}
+          <button onClick={() => setGenMsg('')} className="ml-auto text-current opacity-60 hover:opacity-100">×</button>
+        </div>
+      )}
+
       {/* ── Top bar ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="font-semibold text-gray-900">{posts.length} / 52 Posts</h2>
+
+          {/* Generate next month's posts */}
+          <button
+            onClick={generateNextMonthPosts}
+            disabled={generating}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium bg-[#1a2744] text-white hover:bg-[#243461] disabled:opacity-50 transition-colors"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            {generating ? 'Generating…' : 'Generate next month\'s posts'}
+          </button>
 
           {/* Export all visible */}
           <button

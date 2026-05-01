@@ -71,7 +71,7 @@ export default function StatusPanel({ client }: { client: Client }) {
         .not('agent_name', 'eq', '_pipeline_failure')
         .order('started_at', { ascending: false }).limit(1),
       supabase.from('gbp_posts').select('id', { count: 'exact', head: true })
-        .eq('client_id', clientId).gte('created_at', monthAgo),
+        .eq('client_id', clientId).eq('status', 'posted').gte('created_at', monthAgo),
       supabase.from('approval_queue').select('id', { count: 'exact', head: true })
         .eq('client_id', clientId).eq('action_type', 'gbp_post').eq('status', 'pending'),
       supabase.from('review_responses').select('id', { count: 'exact', head: true })
@@ -121,7 +121,11 @@ export default function StatusPanel({ client }: { client: Client }) {
     }
   }, [client.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 60_000);
+    return () => clearInterval(interval);
+  }, [load]);
 
   if (!data) {
     return (

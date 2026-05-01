@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Sparkles, Send, CheckCircle, Clock, X, Plus } from 'lucide-react';
+import { Sparkles, Send, CheckCircle, Clock, X, Plus, Inbox } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, startOfWeek, endOfWeek } from 'date-fns';
 import type { Client, FridayUpdate } from '@/lib/types';
 
 const RAILWAY_URL = process.env.NEXT_PUBLIC_RAILWAY_URL ?? '';
@@ -14,17 +14,28 @@ interface WeekOption {
   ends_on: string;
 }
 
+interface WeekContext {
+  rolloutItemsDone: string[];
+  postsPublished: number;
+  reviewsResponded: number;
+}
+
 export default function FridayUpdateTab({ client }: { client: Client }) {
   const [notes,       setNotes]      = useState('');
+  const [progressPct, setProgressPct] = useState(50);
   const [generating,  setGenerating] = useState(false);
   const [saving,      setSaving]     = useState(false);
+  const [queuing,     setQueuing]    = useState(false);
   const [saved,       setSaved]      = useState(false);
+  const [queued,      setQueued]     = useState(false);
   const [history,     setHistory]    = useState<FridayUpdate[]>([]);
   const [modalUpdate, setModalUpdate] = useState<FridayUpdate | null>(null);
   const [msg,         setMsg]        = useState('');
   const [weekOptions, setWeekOptions] = useState<WeekOption[]>([]);
   const [weekNumber,  setWeekNumber] = useState<number | ''>('');
   const [userId,      setUserId]     = useState<string | null>(null);
+  const [weekContext, setWeekContext] = useState<WeekContext | null>(null);
+  const [loadingContext, setLoadingContext] = useState(false);
 
   const supabase = createClient();
 
@@ -47,12 +58,69 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Load this-week context from DB when week changes
+  useEffect(() => {
+    if (!weekNumber) return;
+    const week = weekOptions.find(w => w.week_number === weekNumber);
+    if (!week) return;
+
+    setLoadingContext(true);
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString();
+    const weekEnd   = endOfWeek(new Date(), { weekStartsOn: 1 }).toISOString();
+
+    Promise.all([
+      supabase
+        .from('client_rollout_items')
+        .select('label')
+        .eq('client_id', client.id)
+        .eq('completed', true)
+        .gte('completed_at', weekStart)
+        .lte('completed_at', weekEnd),
+      supabase
+        .from('gbp_posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', client.id)
+        .eq('status', 'posted')
+        .gte('scheduled_date', weekStart)
+        .lte('scheduled_date', weekEnd),
+      supabase
+        .from('review_responses')
+        .select('id', { count: 'exact', head: true })
+        .eq('client_id', client.id)
+        .gte('created_at', weekStart)
+        .lte('created_at', weekEnd),
+    ]).then(([itemsRes, postsRes, reviewsRes]) => {
+      setWeekContext({
+        rolloutItemsDone: (itemsRes.data ?? []).map((i: { label: string }) => i.label),
+        postsPublished: postsRes.count ?? 0,
+        reviewsResponded: reviewsRes.count ?? 0,
+      });
+      setLoadingContext(false);
+    });
+  }, [weekNumber, client.id, weekOptions]);
+
   const lastSent = history.find(u => u.sent_at) ?? null;
+
+  function autoFillFromContext() {
+    if (!weekContext) return;
+    const bullets: string[] = [];
+    if (weekContext.rolloutItemsDone.length > 0) {
+      bullets.push('Rollout tasks completed this week:');
+      weekContext.rolloutItemsDone.forEach(l => bullets.push(`  • ${l}`));
+    }
+    if (weekContext.postsPublished > 0)
+      bullets.push(`• ${weekContext.postsPublished} GBP post${weekContext.postsPublished > 1 ? 's' : ''} published`);
+    if (weekContext.reviewsResponded > 0)
+      bullets.push(`• ${weekContext.reviewsResponded} Google review response${weekContext.reviewsResponded > 1 ? 's' : ''} drafted`);
+    if (bullets.length === 0) bullets.push('• No automated activity found this week — add manual notes.');
+    setNotes(bullets.join('\n'));
+  }
 
   async function generateDraft() {
     if (!RAILWAY_URL) { setMsg('RAILWAY_URL not configured — write the update manually.'); return; }
     setGenerating(true);
     setSaved(false);
+    setQueued(false);
     setMsg('');
     try {
       const res = await fetch(`${RAILWAY_URL}/friday-update/${client.id}`, { method: 'POST' });
@@ -75,7 +143,7 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
       client_id:       client.id,
       content:         notes.trim() || '—',
       sent_at:         new Date().toISOString(),
-      delivery_method: 'email',
+      delivery_method: 'manual',
       week_number:     weekNumber || null,
       sent_by_user_id: userId,
     });
@@ -89,6 +157,45 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
     setSaving(false);
   }
 
+  async function saveAndQueue() {
+    if (!client.email) { setMsg('No client email address set — add it in the client edit form.'); return; }
+    setQueuing(true);
+    setMsg('');
+
+    const selectedWeek = weekOptions.find(w => w.week_number === weekNumber);
+    const weekLabel = selectedWeek?.week_label ?? `Week ${weekNumber}`;
+    const subject = `Your SEO Update — ${weekLabel}`;
+
+    const body = notes.trim()
+      ? `Hi ${client.owner_name ?? client.business_name},\n\nHere's your SEO update for ${weekLabel}:\n\n${notes.trim()}\n\nProgress this week: ${progressPct}%\n\nBest regards,\nFigure 8 Results`
+      : `Hi ${client.owner_name ?? client.business_name},\n\nHere's your SEO update for ${weekLabel}.\n\nProgress this week: ${progressPct}%\n\nBest regards,\nFigure 8 Results`;
+
+    const { error } = await supabase.from('approval_queue').insert({
+      client_id:   client.id,
+      action_type: 'friday_update',
+      content_data: {
+        subject,
+        body,
+        to_email:      client.email,
+        business_name: client.business_name,
+        week_number:   weekNumber || null,
+        week_label:    weekLabel,
+        progress_pct:  progressPct,
+        notes:         notes.trim(),
+      },
+      status: 'pending',
+    });
+
+    if (error) {
+      setMsg(`Failed to queue: ${error.message}`);
+    } else {
+      setQueued(true);
+      setNotes('');
+      setProgressPct(50);
+    }
+    setQueuing(false);
+  }
+
   return (
     <div className="p-6 space-y-6">
 
@@ -100,7 +207,7 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
           : 'No updates logged yet.'}
       </div>
 
-      {/* Sent confirmation */}
+      {/* Success banners */}
       {saved && (
         <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700">
           <div className="flex items-center gap-2">
@@ -112,12 +219,22 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
           </button>
         </div>
       )}
+      {queued && (
+        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+          <div className="flex items-center gap-2">
+            <Inbox className="w-4 h-4 text-amber-500 shrink-0" />
+            Queued for approval — review it in the <a href="/agency/approvals" className="underline font-medium">Approvals</a> page before sending.
+          </div>
+          <button onClick={() => setQueued(false)} className="text-amber-700 hover:text-amber-900 font-medium">
+            Write another
+          </button>
+        </div>
+      )}
 
       {/* Log form */}
-      {!saved && (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
-          <p className="text-sm font-medium text-gray-700">Log a Friday update</p>
-          <p className="text-xs text-gray-400">Send the email to your client outside this app, then log it here to keep track.</p>
+      {!saved && !queued && (
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-4">
+          <p className="text-sm font-medium text-gray-700">Prepare Friday update</p>
 
           {/* Week selector */}
           {weekOptions.length > 0 && (
@@ -138,24 +255,75 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
             </div>
           )}
 
+          {/* Progress slider */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <label className="text-gray-600">Week progress</label>
+              <span className="font-semibold text-[#E8622A]">{progressPct}%</span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={progressPct}
+              onChange={e => setProgressPct(Number(e.target.value))}
+              className="w-full accent-[#E8622A]"
+            />
+            <div className="flex justify-between text-xs text-gray-400">
+              <span>Just started</span>
+              <span>Halfway</span>
+              <span>Complete</span>
+            </div>
+          </div>
+
+          {/* This-week context chips */}
+          {weekContext && !loadingContext && (
+            <div className="flex flex-wrap gap-2 items-center">
+              {weekContext.rolloutItemsDone.length > 0 && (
+                <span className="text-xs bg-green-50 text-green-700 border border-green-200 px-2 py-1 rounded-full">
+                  ✓ {weekContext.rolloutItemsDone.length} task{weekContext.rolloutItemsDone.length > 1 ? 's' : ''} done
+                </span>
+              )}
+              {weekContext.postsPublished > 0 && (
+                <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-1 rounded-full">
+                  📝 {weekContext.postsPublished} post{weekContext.postsPublished > 1 ? 's' : ''} published
+                </span>
+              )}
+              {weekContext.reviewsResponded > 0 && (
+                <span className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2 py-1 rounded-full">
+                  💬 {weekContext.reviewsResponded} review{weekContext.reviewsResponded > 1 ? 's' : ''} responded
+                </span>
+              )}
+              <button
+                onClick={autoFillFromContext}
+                className="text-xs text-[#E8622A] hover:text-[#d05520] underline underline-offset-2"
+              >
+                Auto-fill from activity
+              </button>
+            </div>
+          )}
+
+          {/* Notes textarea */}
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
-            rows={5}
-            placeholder="Paste the update content here, or leave blank to just log the date…"
+            rows={6}
+            placeholder="Bullet-point notes for the client update email…"
             className="w-full border border-gray-200 rounded-lg px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30 bg-white resize-y"
           />
 
-          {msg && <p className="text-sm text-[#E8622A]">{msg}</p>}
+          {msg && <p className="text-sm text-red-600">{msg}</p>}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Primary: queue for approval (sends to client after operator approves) */}
             <button
-              onClick={logUpdate}
-              disabled={saving}
+              onClick={saveAndQueue}
+              disabled={queuing}
               className="flex items-center gap-2 bg-[#E8622A] text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-[#d05520] transition-colors disabled:opacity-40"
             >
-              <Plus className="w-4 h-4" />
-              {saving ? 'Saving…' : 'Log Update Sent'}
+              <Inbox className="w-4 h-4" />
+              {queuing ? 'Queueing…' : 'Save and Queue for Approval'}
             </button>
 
             <button
@@ -164,9 +332,25 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
               className="flex items-center gap-2 border border-gray-200 text-gray-700 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors disabled:opacity-50"
             >
               <Sparkles className="w-4 h-4" />
-              {generating ? 'Generating…' : 'Generate Draft'}
+              {generating ? 'Generating…' : 'AI Draft'}
+            </button>
+
+            {/* Secondary: just log it (already sent outside app) */}
+            <button
+              onClick={logUpdate}
+              disabled={saving}
+              className="flex items-center gap-2 border border-gray-200 text-gray-500 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-40"
+            >
+              <Plus className="w-4 h-4" />
+              {saving ? 'Saving…' : 'Already Sent — Log Only'}
             </button>
           </div>
+
+          {!client.email && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+              No client email set. "Queue" will be disabled until you add one in <a href={`/agency/clients/${client.id}/edit`} className="underline">Edit Client</a>.
+            </p>
+          )}
         </div>
       )}
 
