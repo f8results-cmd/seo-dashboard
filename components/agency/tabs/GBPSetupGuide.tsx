@@ -122,8 +122,10 @@ export default function GBPSetupGuide({ client }: { client: Client }) {
   const gbpGuide = (wd.gbp_guide ?? {}) as Record<string, unknown>;
 
   // ── Data sources ──────────────────────────────────────────────────────
-  const primary = client.gbp_primary_category ?? '';
-  const secondaries: string[] = client.gbp_secondary_categories ?? [];
+  const primary = typeof client.gbp_primary_category === 'string' ? client.gbp_primary_category : String(client.gbp_primary_category ?? '');
+  const secondaries: string[] = (client.gbp_secondary_categories ?? []).map(cat =>
+    typeof cat === 'string' ? cat : String((cat as unknown as Record<string, unknown>)?.name ?? JSON.stringify(cat))
+  );
   // Canonical description path: website_data.gbp_description (written by GBPAgent).
   // Fall back to gbp_guide.description for records where the old path is the only one populated.
   const description: string =
@@ -174,15 +176,15 @@ export default function GBPSetupGuide({ client }: { client: Client }) {
             {primary && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 w-16 shrink-0">Primary</span>
-                <span className="flex-1 text-sm font-medium text-gray-900 bg-blue-50 border border-blue-100 rounded px-3 py-1.5">{primary}</span>
-                <CopyBtn text={primary} />
+                <span className="flex-1 text-sm font-medium text-gray-900 bg-blue-50 border border-blue-100 rounded px-3 py-1.5">{String(primary)}</span>
+                <CopyBtn text={String(primary)} />
               </div>
             )}
             {secondaries.map((cat, i) => (
               <div key={i} className="flex items-center gap-2">
                 <span className="text-xs text-gray-500 w-16 shrink-0">Secondary {i + 1}</span>
-                <span className="flex-1 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded px-3 py-1.5">{cat}</span>
-                <CopyBtn text={cat} />
+                <span className="flex-1 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded px-3 py-1.5">{String(cat)}</span>
+                <CopyBtn text={String(cat)} />
               </div>
             ))}
             <div className="flex justify-end pt-1">
@@ -243,7 +245,7 @@ export default function GBPSetupGuide({ client }: { client: Client }) {
               <div key={gi}>
                 {group.category && (
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">{group.category}</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">{String(group.category)}</span>
                     <div className="flex-1 h-px bg-gray-200" />
                   </div>
                 )}
