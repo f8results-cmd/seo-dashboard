@@ -319,6 +319,34 @@ export interface Reminder {
   overdue: boolean;
 }
 
+// ── Approval Queue (migration 020) ────────────────────────────────────────────
+export type ApprovalActionType =
+  | 'gbp_post'
+  | 'review_reply'
+  | 'monthly_report'
+  | 'photo_reminder'
+  | 'friday_update';
+
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'published' | 'error';
+
+export interface ApprovalQueueItem {
+  id: string;
+  client_id: string;
+  action_type: ApprovalActionType;
+  content_data: Record<string, unknown>;
+  edited_content: Record<string, unknown> | null;
+  scheduled_for: string | null;
+  status: ApprovalStatus;
+  approved_by: string | null;
+  approved_at: string | null;
+  published_at: string | null;
+  publish_result: string | null;
+  reject_reason: string | null;
+  created_at: string;
+  // joined
+  clients?: { business_name: string; city: string | null; niche: string | null } | null;
+}
+
 // Supabase Database type
 export type Database = {
   public: {

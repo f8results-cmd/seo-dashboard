@@ -14,6 +14,7 @@ import PhaseTracker from '@/components/agency/PhaseTracker';
 import WebsiteStatusBar from '@/components/agency/WebsiteStatusBar';
 import PipelineSidebar from '@/components/agency/PipelineSidebar';
 import NotesSidebar from '@/components/agency/NotesSidebar';
+import StatusPanel from '@/components/agency/StatusPanel';
 import type { Client, Deliverable } from '@/lib/types';
 
 const STATUS_STYLES: Record<string, string> = {
@@ -270,10 +271,13 @@ export default function ClientDetailPage() {
         </div>
       )}
 
-      {/* Three-panel layout: Notes | checklist+tabs | Pipeline */}
+      {/* Three-panel layout: Notes+Status | checklist+tabs | Pipeline */}
       <div className="flex gap-5 items-start">
-        {/* Left: notes sidebar */}
-        <NotesSidebar client={client} />
+        {/* Left: status panel + notes sidebar */}
+        <div className="w-64 flex-shrink-0 space-y-4">
+          <StatusPanel client={client} />
+          <NotesSidebar client={client} />
+        </div>
 
         {/* Center: tabs */}
         <div className="flex-1 min-w-0">

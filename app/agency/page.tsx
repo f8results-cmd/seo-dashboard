@@ -4,7 +4,7 @@ import { format, parseISO, startOfDay, addDays, isToday, isBefore } from 'date-f
 import { healthColour, calcStaffChecklistPct } from '@/lib/health';
 import { formatNiche } from '@/lib/utils';
 import type { Client, ClientTask } from '@/lib/types';
-import { CheckSquare, Users, Bell, Clock, ChevronRight, Plus } from 'lucide-react';
+import { CheckSquare, Users, Bell, Clock, ChevronRight, Plus, Inbox } from 'lucide-react';
 
 export const revalidate = 30;
 
@@ -37,6 +37,8 @@ export default async function AgencyDashboard() {
     { data: weekTasks },
     { data: activeClients },
     { data: latestJobsRaw },
+    { count: pendingApprovals },
+    { data: recentOutbound },
   ] = await Promise.all([
     supabase.from('clients')
       .select('id, business_name, owner_name, status, health_score, niche, city, state, last_friday_update, onboarding_checklist')
@@ -59,6 +61,13 @@ export default async function AgencyDashboard() {
       .not('agent_name', 'eq', '_pipeline_failure')
       .order('started_at', { ascending: false })
       .limit(1000),
+    // Pending approvals count — null-safe if table doesn't exist yet
+    supabase.from('approval_queue').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    // Recent outbound (last 8 sends)
+    supabase.from('outbound_log')
+      .select('id, surface, subject, sent_at, clients(business_name)')
+      .order('sent_at', { ascending: false })
+      .limit(8),
   ]);
 
   const allClients = (clients ?? []) as Client[];
@@ -80,13 +89,14 @@ export default async function AgencyDashboard() {
   ).length;
 
   const activeCount = (activeClients ?? []).length;
+  const approvalCount = pendingApprovals ?? 0;
 
   // Stats
   const stats = [
-    { label: 'Active Clients',     value: activeCount,                   icon: Users,       colour: 'bg-[#1a2744]' },
-    { label: 'Tasks Due Today',    value: tasksDueToday.length,          icon: CheckSquare, colour: 'bg-[#E8622A]' },
-    { label: 'Tasks This Week',    value: tasksDueToday.length + tasksDueWeek.length, icon: Clock, colour: 'bg-amber-500' },
-    { label: 'Updates Due',        value: updatesNeeded,                 icon: Bell,        colour: 'bg-purple-600' },
+    { label: 'Active Clients',      value: activeCount,                   icon: Users,       colour: 'bg-[#1a2744]',   href: '/agency/clients' },
+    { label: 'Pending Approvals',   value: approvalCount,                 icon: Inbox,       colour: approvalCount > 0 ? 'bg-[#E8622A]' : 'bg-gray-400', href: '/agency/approvals' },
+    { label: 'Tasks This Week',     value: tasksDueToday.length + tasksDueWeek.length, icon: Clock, colour: 'bg-amber-500', href: '/agency/todo' },
+    { label: 'Updates Due',         value: updatesNeeded,                 icon: Bell,        colour: 'bg-purple-600',  href: '/agency/reminders' },
   ];
 
   return (
@@ -105,14 +115,14 @@ export default async function AgencyDashboard() {
         </Link>
       </div>
 
-      {/* Stat cards */}
+      {/* Stat cards — all clickable */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map(s => (
-          <div key={s.label} className={`${s.colour} rounded-xl p-5 text-white`}>
+          <Link key={s.label} href={s.href} className={`${s.colour} rounded-xl p-5 text-white hover:opacity-90 transition-opacity block`}>
             <s.icon className="w-5 h-5 opacity-70 mb-2" />
             <p className="text-3xl font-bold">{s.value}</p>
             <p className="text-sm opacity-80 mt-0.5">{s.label}</p>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -197,6 +207,41 @@ export default async function AgencyDashboard() {
           )}
         </div>
       </div>
+
+      {/* Recent outbound */}
+      {(recentOutbound ?? []).length > 0 && (() => {
+        type OutboundRow = { id: string; surface: string; subject: string | null; sent_at: string; clients: { business_name: string } | null };
+        const rows = (recentOutbound ?? []) as unknown as OutboundRow[];
+        return (
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h2 className="font-semibold text-gray-900">Recently published</h2>
+              <Link href="/agency/approvals" className="text-xs text-[#E8622A] hover:underline">View queue</Link>
+            </div>
+            <ul className="divide-y divide-gray-50">
+              {rows.map(row => (
+                <li key={row.id} className="flex items-center gap-3 px-5 py-3">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
+                    row.surface === 'gbp_post' ? 'bg-blue-100 text-blue-700' :
+                    row.surface === 'email' ? 'bg-purple-100 text-purple-700' :
+                    row.surface === 'review_reply' ? 'bg-green-100 text-green-700' :
+                    'bg-gray-100 text-gray-500'
+                  }`}>
+                    {row.surface.replace('_', ' ')}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-800 truncate">{row.clients?.business_name ?? '—'}</p>
+                    {row.subject && <p className="text-xs text-gray-400 truncate">{row.subject}</p>}
+                  </div>
+                  <span className="text-xs text-gray-400 flex-shrink-0">
+                    {format(parseISO(row.sent_at), 'd MMM HH:mm')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })()}
 
       {/* Client table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

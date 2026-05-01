@@ -9,16 +9,18 @@ import {
   differenceInDays, format, subDays,
 } from 'date-fns';
 import {
-  LayoutDashboard, Users, CheckSquare, UserPlus, Bell, Settings, Menu, X,
+  LayoutDashboard, Users, CheckSquare, UserPlus, Bell, Settings, Menu, X, Inbox,
 } from 'lucide-react';
 
 interface SidebarProps {
   reminderCount?: number;
+  approvalCount?: number;
 }
 
 const NAV = [
   { href: '/agency',           label: 'Dashboard',     icon: LayoutDashboard },
   { href: '/agency/clients',   label: 'Clients',        icon: Users },
+  { href: '/agency/approvals', label: 'Approvals',      icon: Inbox,       approvalBadge: true },
   { href: '/agency/todo',      label: 'To Do',          icon: CheckSquare },
   { href: '/agency/onboard',   label: 'Onboard Client', icon: UserPlus },
   { href: '/agency/reminders', label: 'Reminders',      icon: Bell, badge: true },
@@ -74,14 +76,16 @@ function NavLinks({
   onClose,
   isActive,
   reminderCount,
+  approvalCount,
 }: {
   onClose?: () => void;
   isActive: (href: string) => boolean;
   reminderCount: number;
+  approvalCount: number;
 }) {
   return (
     <nav className="flex flex-col gap-0.5 px-3 py-4">
-      {NAV.map(({ href, label, icon: Icon, badge }) => (
+      {NAV.map(({ href, label, icon: Icon, badge, approvalBadge }) => (
         <Link
           key={href}
           href={href}
@@ -97,6 +101,11 @@ function NavLinks({
           {badge && reminderCount > 0 && (
             <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
               {reminderCount > 99 ? '99+' : reminderCount}
+            </span>
+          )}
+          {approvalBadge && approvalCount > 0 && (
+            <span className="bg-amber-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+              {approvalCount > 99 ? '99+' : approvalCount}
             </span>
           )}
         </Link>
@@ -197,6 +206,7 @@ export default function AgencySidebar({ reminderCount = 0 }: SidebarProps) {
   const [weekGroups, setWeekGroups]   = useState<WeekGroup[]>([]);
   const [fridayDue, setFridayDue]     = useState<{ id: string; business_name: string }[]>([]);
   const [weekLoading, setWeekLoading] = useState(true);
+  const [approvalCount, setApprovalCount] = useState(0);
 
   useEffect(() => {
     const supabase = createClient();
@@ -240,6 +250,17 @@ export default function AgencySidebar({ reminderCount = 0 }: SidebarProps) {
         setFridayDue(due);
       }
 
+      // Approval count — non-blocking, fails gracefully if table doesn't exist
+      try {
+        const { count } = await supabase
+          .from('approval_queue')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending');
+        setApprovalCount(count ?? 0);
+      } catch {
+        // Table may not exist yet
+      }
+
       setWeekLoading(false);
     };
 
@@ -260,7 +281,7 @@ export default function AgencySidebar({ reminderCount = 0 }: SidebarProps) {
           <div className="text-slate-400 text-xs mt-0.5">Agency Portal</div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <NavLinks isActive={isActive} reminderCount={reminderCount} />
+          <NavLinks isActive={isActive} reminderCount={reminderCount} approvalCount={approvalCount} />
           <WeekSection weekGroups={weekGroups} fridayDue={fridayDue} weekLoading={weekLoading} />
         </div>
         <div className="px-5 py-4 border-t border-white/10 text-slate-500 text-xs flex-shrink-0">
@@ -288,7 +309,7 @@ export default function AgencySidebar({ reminderCount = 0 }: SidebarProps) {
             <div className="px-5 py-5 mt-14 border-b border-white/10 flex-shrink-0">
               <div className="text-white font-bold">Figure 8 Results</div>
             </div>
-            <NavLinks onClose={() => setOpen(false)} isActive={isActive} reminderCount={reminderCount} />
+            <NavLinks onClose={() => setOpen(false)} isActive={isActive} reminderCount={reminderCount} approvalCount={approvalCount} />
             <WeekSection onClose={() => setOpen(false)} weekGroups={weekGroups} fridayDue={fridayDue} weekLoading={weekLoading} />
           </aside>
         </div>
