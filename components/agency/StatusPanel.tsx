@@ -159,7 +159,7 @@ export default function StatusPanel({ client }: { client: Client }) {
           icon={<Tag className="w-3.5 h-3.5" />}
           label="GBP categories"
           value={data.has_categories
-            ? <span className="text-green-700">Set — {client.gbp_primary_category}</span>
+            ? <span className="text-green-700">Set — {String(client.gbp_primary_category ?? '')}</span>
             : <span className="text-red-500">not set</span>}
           ok={data.has_categories}
         />

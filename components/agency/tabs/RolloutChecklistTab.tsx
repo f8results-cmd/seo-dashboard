@@ -361,8 +361,8 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
                     <div key={cat} className="border-t border-gray-100 first:border-t-0">
                       {/* Category label */}
                       <div className="px-5 py-2 bg-gray-50/60 flex items-center gap-2">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${CATEGORY_COLORS[cat] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {cat}
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${CATEGORY_COLORS[String(cat)] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {String(cat ?? '')}
                         </span>
                       </div>
 
