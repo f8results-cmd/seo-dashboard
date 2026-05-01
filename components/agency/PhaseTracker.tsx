@@ -37,12 +37,13 @@ export default function PhaseTracker({ clientId }: Props) {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase
-      .from('client_tasks')
-      .select('phase, completed')
-      .eq('client_id', clientId)
-      .in('phase', ['gbp_setup', 'website', 'citations', 'ongoing'])
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('client_tasks')
+          .select('phase, completed')
+          .eq('client_id', clientId)
+          .in('phase', ['gbp_setup', 'website', 'citations', 'ongoing']);
         const map = new Map<PhaseKey, PhaseStats>();
         for (const task of (data ?? []) as { phase: PhaseKey; completed: boolean }[]) {
           const s = map.get(task.phase) ?? { total: 0, done: 0 };
@@ -51,9 +52,12 @@ export default function PhaseTracker({ clientId }: Props) {
           map.set(task.phase, s);
         }
         setStats(map);
+      } catch {
+        // phase column may not exist yet — show all phases as not_started
+      } finally {
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      }
+    })();
   }, [clientId]);
 
   function getStatus(key: PhaseKey): PhaseStatus {
