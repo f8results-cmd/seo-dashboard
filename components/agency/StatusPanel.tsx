@@ -82,8 +82,8 @@ export default function StatusPanel({ client }: { client: Client }) {
         .eq('client_id', clientId).not('sent_at', 'is', null).gte('sent_at', weekStart).limit(1),
       supabase.from('approval_queue').select('id', { count: 'exact', head: true })
         .eq('client_id', clientId).eq('status', 'pending'),
-      supabase.from('client_rollout_items').select('id', { count: 'exact', head: true })
-        .eq('client_id', clientId).eq('completed', false).lt('due_date', today),
+      supabase.from('client_rollout_weeks').select('id', { count: 'exact', head: true })
+        .eq('client_id', clientId).lt('ends_on', today).eq('completed', false),
     ]);
 
     const wd = (client.website_data ?? {}) as Record<string, unknown>;

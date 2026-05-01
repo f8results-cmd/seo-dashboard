@@ -52,7 +52,8 @@ export default function PhaseTracker({ clientId }: Props) {
         }
         setStats(map);
         setLoading(false);
-      });
+      })
+      .catch(() => setLoading(false));
   }, [clientId]);
 
   function getStatus(key: PhaseKey): PhaseStatus {
