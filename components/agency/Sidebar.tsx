@@ -9,7 +9,7 @@ import {
   differenceInDays, format, subDays,
 } from 'date-fns';
 import {
-  LayoutDashboard, Users, CheckSquare, UserPlus, Bell, Settings, Menu, X, Inbox,
+  LayoutDashboard, Users, CheckSquare, UserPlus, Bell, Settings, Menu, X, Inbox, MessageSquare,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -24,6 +24,7 @@ const NAV = [
   { href: '/agency/todo',      label: 'To Do',          icon: CheckSquare },
   { href: '/agency/onboard',   label: 'Onboard Client', icon: UserPlus },
   { href: '/agency/reminders', label: 'Reminders',      icon: Bell, badge: true },
+  { href: '/agency/dev-chat',  label: 'Dev Chat',       icon: MessageSquare },
   { href: '/agency/settings',  label: 'Settings',       icon: Settings },
 ];
 
