@@ -95,7 +95,7 @@ function Ga4SetupGuide({ businessName, city, liveUrl }: { businessName: string; 
     <>Stream name: <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{businessName}</code> — click Create stream</>,
     <>Copy the <strong>Measurement ID</strong> (starts with G-) shown at the top of the data stream</>,
     <>Paste it into the <strong>Google Analytics 4 Measurement ID</strong> field in Edit Client and save</>,
-    <>Click <strong>Redeploy with analytics</strong> on the Website tab — wait ~5 minutes</>,
+    <>Click <strong>Inject GA4 tag</strong> on the Website tab — confirm — wait ~2 minutes</>,
     <>Wait 24 hours — GA4 begins collecting data automatically. Check <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer" className="text-[#E8622A] underline">analytics.google.com</a> to confirm</>,
   ];
 

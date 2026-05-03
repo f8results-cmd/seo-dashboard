@@ -92,7 +92,7 @@ function Ga4SetupGuide({ businessName, city, liveUrl }: { businessName: string; 
     <>Stream name: <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{businessName}</code> — click Create stream</>,
     <>Copy the <strong>Measurement ID</strong> (starts with G-) shown at the top of the data stream</>,
     <>Paste it into the <strong>Analytics &amp; Tracking</strong> section of Edit Client and save</>,
-    <>Click <strong>Redeploy with analytics</strong> button above — wait ~5 minutes</>,
+    <>Click <strong>Inject GA4 tag</strong> button above → confirm → wait ~2 minutes</>,
     <>Wait 24 hours — GA4 begins collecting data automatically</>,
   ];
 
@@ -143,14 +143,20 @@ export default function WebsiteTab({ client }: { client: Client }) {
   const tree = buildTree(pages);
   const [redeploying, setRedeploying] = useState(false);
   const [redeployMsg, setRedeployMsg] = useState('');
+  const [confirmingRedeploy, setConfirmingRedeploy] = useState(false);
 
   async function handleRedeploy() {
     if (!RAILWAY_URL) return;
+    setConfirmingRedeploy(false);
     setRedeploying(true);
     setRedeployMsg('');
     try {
-      const res = await fetch(`${RAILWAY_URL}/redeploy/${client.id}`, { method: 'POST' });
-      setRedeployMsg(res.ok ? 'Redeploy triggered — site will update in ~10 minutes.' : `Error: ${res.status}`);
+      const res = await fetch(`${RAILWAY_URL}/inject-analytics/${client.id}`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      setRedeployMsg(res.ok
+        ? 'GA4 tag injected — Vercel will rebuild in ~2 minutes. Manual edits are preserved.'
+        : `Error: ${data?.detail ?? res.status}`
+      );
     } catch {
       setRedeployMsg('Failed to reach backend.');
     }
@@ -174,15 +180,34 @@ export default function WebsiteTab({ client }: { client: Client }) {
                 <BarChart3 className="w-3 h-3" /> GA4 {client.google_tag_id}
               </a>
             )}
-            {client.live_url && (
-              <button
-                onClick={handleRedeploy}
-                disabled={redeploying}
-                className="inline-flex items-center gap-1.5 text-xs text-gray-600 border border-gray-200 px-2.5 py-1 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3 h-3 ${redeploying ? 'animate-spin' : ''}`} />
-                {redeploying ? 'Redeploying…' : 'Redeploy with analytics'}
-              </button>
+            {client.live_url && !client.google_tag_id && null}
+            {client.live_url && client.google_tag_id && (
+              confirmingRedeploy ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-amber-700">Inject GA4 only — manual edits preserved. Confirm?</span>
+                  <button
+                    onClick={handleRedeploy}
+                    className="text-xs bg-[#E8622A] text-white px-2.5 py-1 rounded-lg font-medium hover:bg-[#d4561f]"
+                  >
+                    Yes, inject
+                  </button>
+                  <button
+                    onClick={() => setConfirmingRedeploy(false)}
+                    className="text-xs text-gray-500 hover:text-gray-700 px-1"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmingRedeploy(true)}
+                  disabled={redeploying}
+                  className="inline-flex items-center gap-1.5 text-xs text-gray-600 border border-gray-200 px-2.5 py-1 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${redeploying ? 'animate-spin' : ''}`} />
+                  {redeploying ? 'Injecting…' : 'Inject GA4 tag'}
+                </button>
+              )
             )}
           </div>
         </div>
