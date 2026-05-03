@@ -149,8 +149,8 @@ export default function WebsiteTab({ client }: { client: Client }) {
     setRedeploying(true);
     setRedeployMsg('');
     try {
-      const res = await fetch(`${RAILWAY_URL}/run-gbp/${client.id}`, { method: 'POST' });
-      setRedeployMsg(res.ok ? 'Redeploy triggered — site will update in ~5 minutes.' : `Error: ${res.status}`);
+      const res = await fetch(`${RAILWAY_URL}/redeploy/${client.id}`, { method: 'POST' });
+      setRedeployMsg(res.ok ? 'Redeploy triggered — site will update in ~10 minutes.' : `Error: ${res.status}`);
     } catch {
       setRedeployMsg('Failed to reach backend.');
     }
