@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   RefreshCw, ExternalLink, X, Building2, Newspaper,
-  Globe, Trophy, Users, Link2, Search, ChevronDown,
+  Globe, Trophy, Users, Link2, Search, ChevronDown, Plus,
 } from 'lucide-react';
 import type { Client } from '@/lib/types';
 
@@ -16,6 +16,8 @@ type OpportunityStatus =
 type OpportunityType =
   | 'chamber' | 'association' | 'news' | 'directory'
   | 'blog' | 'sponsorship' | 'guest_post' | 'supplier' | 'award' | 'other';
+
+type ManualOpportunityType = 'backlink' | 'citation' | 'directory' | 'sponsorship' | 'partnership';
 
 interface BacklinkOpportunity {
   id: string;
@@ -33,6 +35,10 @@ interface BacklinkOpportunity {
   last_contact_date: string | null;
   notes: string | null;
   created_at: string;
+  // fields added by manual entry
+  opportunity_type?: ManualOpportunityType;
+  type_label?: string;
+  action_description?: string;
 }
 
 interface Props {
@@ -62,6 +68,23 @@ const FILTER_PILLS: { value: 'all' | OpportunityStatus; label: string }[] = [
   { value: 'not_viable',        label: 'Not Viable' },
 ];
 
+const TYPE_FILTER_PILLS: { value: 'all' | ManualOpportunityType; label: string }[] = [
+  { value: 'all',         label: 'All' },
+  { value: 'backlink',    label: 'Backlinks' },
+  { value: 'citation',    label: 'Citations' },
+  { value: 'directory',   label: 'Directories' },
+  { value: 'sponsorship', label: 'Sponsorships' },
+  { value: 'partnership', label: 'Partnerships' },
+];
+
+const MANUAL_TYPE_OPTIONS: { value: ManualOpportunityType; label: string }[] = [
+  { value: 'backlink',    label: 'Backlink' },
+  { value: 'citation',    label: 'Citation' },
+  { value: 'directory',   label: 'Directory' },
+  { value: 'sponsorship', label: 'Sponsorship' },
+  { value: 'partnership', label: 'Partnership' },
+];
+
 const TYPE_ICONS: Record<OpportunityType, React.ReactNode> = {
   chamber:    <Building2 className="w-3.5 h-3.5" />,
   association:<Users className="w-3.5 h-3.5" />,
@@ -87,6 +110,8 @@ const TYPE_LABELS: Record<OpportunityType, string> = {
   award:      'Award',
   other:      'Other',
 };
+
+const RAILWAY_URL = process.env.NEXT_PUBLIC_RAILWAY_URL ?? '';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -130,6 +155,386 @@ function statusBadge(s: OpportunityStatus) {
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${map[s] ?? ''}`}>
       {label}
     </span>
+  );
+}
+
+// ── CSV parser ────────────────────────────────────────────────────────────────
+
+function parseCsvRow(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+      else { inQuotes = !inQuotes; }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+interface ParsedCsvRow {
+  opportunity_name: string;
+  opportunity_url: string;
+  opportunity_type: string;
+  type_label: string;
+  priority: string;
+  effort: string;
+  cost: string;
+  action_description: string;
+}
+
+function parseCsv(raw: string): ParsedCsvRow[] {
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  return lines.map(line => {
+    const cols = parseCsvRow(line);
+    return {
+      opportunity_name: cols[0] ?? '',
+      opportunity_url:  cols[1] ?? '',
+      opportunity_type: cols[2] ?? '',
+      type_label:       cols[3] ?? '',
+      priority:         cols[4] ?? '',
+      effort:           cols[5] ?? '',
+      cost:             cols[6] ?? '',
+      action_description: cols[7] ?? '',
+    };
+  }).filter(r => r.opportunity_name);
+}
+
+// ── Add Manual Modal ──────────────────────────────────────────────────────────
+
+const BLANK_FORM = {
+  opportunity_name: '',
+  opportunity_url: '',
+  opportunity_type: 'citation' as ManualOpportunityType,
+  type_label: '',
+  priority: 'medium' as 'high' | 'medium' | 'low',
+  effort: '< 15 min',
+  cost: '$0',
+  action_description: '',
+  notes: '',
+};
+
+function AddManualModal({
+  clientId,
+  onClose,
+  onSuccess,
+}: {
+  clientId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [tab, setTab] = useState<'single' | 'bulk'>('single');
+  const [form, setForm] = useState({ ...BLANK_FORM });
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  // Bulk state
+  const [csvText, setCsvText] = useState('');
+  const [parsedRows, setParsedRows] = useState<ParsedCsvRow[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+
+  useEffect(() => {
+    setParsedRows(parseCsv(csvText));
+  }, [csvText]);
+
+  const inputCls = 'w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1B2B6B]/30 bg-white';
+
+  async function handleSingleSave() {
+    if (!form.opportunity_name.trim()) { setSaveError('Opportunity Name is required.'); return; }
+    setSaveError('');
+    setSaving(true);
+    try {
+      const res = await fetch(`${RAILWAY_URL}/local-opportunities/${clientId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          opportunity_name:    form.opportunity_name.trim(),
+          opportunity_url:     form.opportunity_url.trim(),
+          opportunity_type:    form.opportunity_type,
+          type_label:          form.type_label.trim(),
+          priority:            form.priority,
+          effort:              form.effort,
+          cost:                form.cost,
+          action_description:  form.action_description.trim(),
+          notes:               form.notes.trim() || null,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onSuccess();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Save failed. Try again.');
+    }
+    setSaving(false);
+  }
+
+  async function handleBulkImport() {
+    if (parsedRows.length === 0) return;
+    setImportError('');
+    setImporting(true);
+    try {
+      const res = await fetch(`${RAILWAY_URL}/local-opportunities/${clientId}/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: parsedRows }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onSuccess();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Import failed. Try again.');
+    }
+    setImporting(false);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+
+      {/* Card */}
+      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+        {/* Modal header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="text-base font-semibold text-gray-900">Add Manual Opportunity</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tab switcher */}
+        <div className="flex border-b border-gray-100 px-5">
+          {(['single', 'bulk'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`py-2.5 px-3 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                tab === t
+                  ? 'border-[#E8622A] text-[#E8622A]'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t === 'single' ? 'Single Entry' : 'Bulk CSV Import'}
+            </button>
+          ))}
+        </div>
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto flex-1 p-5">
+          {tab === 'single' ? (
+            <div className="space-y-3.5">
+              {/* Name */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Opportunity Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  className={inputCls}
+                  placeholder="e.g. Geelong Chamber of Commerce"
+                  value={form.opportunity_name}
+                  onChange={e => setForm(f => ({ ...f, opportunity_name: e.target.value }))}
+                />
+              </div>
+
+              {/* URL */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">URL</label>
+                <input
+                  type="text"
+                  className={inputCls}
+                  placeholder="https://..."
+                  value={form.opportunity_url}
+                  onChange={e => setForm(f => ({ ...f, opportunity_url: e.target.value }))}
+                />
+              </div>
+
+              {/* Type + Type label */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Type</label>
+                  <select
+                    className={inputCls}
+                    value={form.opportunity_type}
+                    onChange={e => setForm(f => ({ ...f, opportunity_type: e.target.value as ManualOpportunityType }))}
+                  >
+                    {MANUAL_TYPE_OPTIONS.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Type Label</label>
+                  <input
+                    type="text"
+                    className={inputCls}
+                    placeholder="e.g. Local Chamber"
+                    value={form.type_label}
+                    onChange={e => setForm(f => ({ ...f, type_label: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Priority + Effort + Cost */}
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Priority</label>
+                  <select
+                    className={inputCls}
+                    value={form.priority}
+                    onChange={e => setForm(f => ({ ...f, priority: e.target.value as 'high' | 'medium' | 'low' }))}
+                  >
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Effort</label>
+                  <select
+                    className={inputCls}
+                    value={form.effort}
+                    onChange={e => setForm(f => ({ ...f, effort: e.target.value }))}
+                  >
+                    <option value="< 15 min">&lt; 15 min</option>
+                    <option value="15-60 min">15–60 min</option>
+                    <option value="60+ min">60+ min</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">Cost</label>
+                  <select
+                    className={inputCls}
+                    value={form.cost}
+                    onChange={e => setForm(f => ({ ...f, cost: e.target.value }))}
+                  >
+                    <option value="$0">$0</option>
+                    <option value="$0-100">$0–100</option>
+                    <option value="$100-500">$100–500</option>
+                    <option value="$500+">$500+</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Action description */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Action Description</label>
+                <textarea
+                  className={`${inputCls} resize-none`}
+                  rows={2}
+                  placeholder="What needs to be done to acquire this opportunity?"
+                  value={form.action_description}
+                  onChange={e => setForm(f => ({ ...f, action_description: e.target.value }))}
+                />
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Notes (optional)</label>
+                <textarea
+                  className={`${inputCls} resize-none`}
+                  rows={2}
+                  placeholder="Contact details, context, follow-up reminders…"
+                  value={form.notes}
+                  onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
+
+              {saveError && (
+                <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{saveError}</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Paste CSV rows
+                </label>
+                <p className="text-xs text-gray-400 mb-2">
+                  Expected columns (no header row): <span className="font-mono">name, url, type, type_label, priority, effort, cost, action</span>
+                </p>
+                <textarea
+                  className={`${inputCls} resize-none font-mono text-xs`}
+                  rows={7}
+                  placeholder={'Geelong Chamber,https://chamber.com.au,citation,Chamber,high,< 15 min,$0,Submit membership listing'}
+                  value={csvText}
+                  onChange={e => setCsvText(e.target.value)}
+                />
+              </div>
+
+              {parsedRows.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-600 mb-2">
+                    Preview — {parsedRows.length} row{parsedRows.length !== 1 ? 's' : ''} parsed
+                    {parsedRows.length > 10 ? ' (showing first 10)' : ''}
+                  </p>
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-100">
+                          <th className="px-2.5 py-1.5 text-left font-semibold text-gray-500">Name</th>
+                          <th className="px-2.5 py-1.5 text-left font-semibold text-gray-500">Type</th>
+                          <th className="px-2.5 py-1.5 text-left font-semibold text-gray-500">Priority</th>
+                          <th className="px-2.5 py-1.5 text-left font-semibold text-gray-500">URL</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {parsedRows.slice(0, 10).map((row, i) => (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="px-2.5 py-1.5 text-gray-800 max-w-[120px] truncate">{row.opportunity_name || '—'}</td>
+                            <td className="px-2.5 py-1.5 text-gray-600">{row.opportunity_type || '—'}</td>
+                            <td className="px-2.5 py-1.5 text-gray-600">{row.priority || '—'}</td>
+                            <td className="px-2.5 py-1.5 text-gray-400 max-w-[120px] truncate font-mono">{row.opportunity_url || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {importError && (
+                <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{importError}</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Modal footer */}
+        <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          {tab === 'single' ? (
+            <button
+              onClick={handleSingleSave}
+              disabled={saving}
+              className="px-4 py-2 text-sm font-medium text-white bg-[#E8622A] rounded-lg hover:bg-[#d45720] disabled:opacity-60 transition-colors"
+            >
+              {saving ? 'Saving…' : 'Save Opportunity'}
+            </button>
+          ) : (
+            <button
+              onClick={handleBulkImport}
+              disabled={importing || parsedRows.length === 0}
+              className="px-4 py-2 text-sm font-medium text-white bg-[#E8622A] rounded-lg hover:bg-[#d45720] disabled:opacity-60 transition-colors"
+            >
+              {importing ? 'Importing…' : `Import ${parsedRows.length} row${parsedRows.length !== 1 ? 's' : ''}`}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -337,12 +742,14 @@ export default function BacklinksTab({ client }: Props) {
   const [opportunities, setOpportunities] = useState<BacklinkOpportunity[]>([]);
   const [loading, setLoading]             = useState(true);
   const [researching, setResearching]     = useState(false);
+  const [typeFilter, setTypeFilter]       = useState<'all' | ManualOpportunityType>('all');
   const [filter, setFilter]               = useState<'all' | OpportunityStatus>('all');
   const [sort, setSort]                   = useState<SortKey>('priority');
   const [selectedIds, setSelectedIds]     = useState<Set<string>>(new Set());
   const [drawerOpp, setDrawerOpp]         = useState<BacklinkOpportunity | null>(null);
   const [bulkStatus, setBulkStatus]       = useState<OpportunityStatus>('outreach_sent');
   const [bulkApplying, setBulkApplying]   = useState(false);
+  const [showAddModal, setShowAddModal]   = useState(false);
 
   const apiBase = process.env.NEXT_PUBLIC_PLATFORM_API_URL ?? '';
 
@@ -432,7 +839,12 @@ export default function BacklinksTab({ client }: Props) {
 
   // ── Derived data ──────────────────────────────────────────────────────────────
 
-  const filtered = opportunities.filter(o => filter === 'all' || o.status === filter);
+  const typeFiltered = opportunities.filter(o => {
+    if (typeFilter === 'all') return true;
+    return o.opportunity_type === typeFilter;
+  });
+
+  const filtered = typeFiltered.filter(o => filter === 'all' || o.status === filter);
 
   const sorted = [...filtered].sort((a, b) => {
     if (sort === 'priority') {
@@ -497,6 +909,13 @@ export default function BacklinksTab({ client }: Props) {
             Refresh
           </button>
           <button
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#E8622A] border border-[#E8622A]/40 rounded-lg hover:bg-[#E8622A]/5 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Manual
+          </button>
+          <button
             onClick={triggerResearch}
             disabled={researching}
             className="inline-flex items-center gap-2 px-4 py-2 bg-[#1B2B6B] text-white text-sm font-medium rounded-lg hover:bg-[#152259] disabled:opacity-60 transition-colors"
@@ -525,14 +944,23 @@ export default function BacklinksTab({ client }: Props) {
             Run research to discover local directories, chambers, news sites, sponsors and more for{' '}
             {client.business_name}.
           </p>
-          <button
-            onClick={triggerResearch}
-            disabled={researching}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1B2B6B] text-white text-sm font-medium rounded-lg hover:bg-[#1B2B6B]/90 disabled:opacity-50"
-          >
-            <Search className="w-4 h-4" />
-            Research Opportunities
-          </button>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-[#E8622A] border border-[#E8622A]/40 text-sm font-medium rounded-lg hover:bg-[#E8622A]/5"
+            >
+              <Plus className="w-4 h-4" />
+              Add Manually
+            </button>
+            <button
+              onClick={triggerResearch}
+              disabled={researching}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1B2B6B] text-white text-sm font-medium rounded-lg hover:bg-[#1B2B6B]/90 disabled:opacity-50"
+            >
+              <Search className="w-4 h-4" />
+              Research Opportunities
+            </button>
+          </div>
         </div>
       )}
 
@@ -567,9 +995,31 @@ export default function BacklinksTab({ client }: Props) {
             ))}
           </div>
 
-          {/* Filter + sort bar */}
+          {/* Type filter pills (row 1) */}
+          <div className="flex flex-wrap gap-1.5">
+            {TYPE_FILTER_PILLS.map(pill => (
+              <button
+                key={pill.value}
+                onClick={() => setTypeFilter(pill.value)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  typeFilter === pill.value
+                    ? 'bg-[#E8622A] text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {pill.label}
+                {pill.value !== 'all' && (
+                  <span className="ml-1 opacity-70">
+                    ({opportunities.filter(o => o.opportunity_type === pill.value).length})
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Status filter + sort bar (row 2) */}
           <div className="flex items-center justify-between flex-wrap gap-3">
-            {/* Filter pills */}
+            {/* Status filter pills */}
             <div className="flex flex-wrap gap-1.5">
               {FILTER_PILLS.map(pill => (
                 <button
@@ -584,7 +1034,7 @@ export default function BacklinksTab({ client }: Props) {
                   {pill.label}
                   {pill.value !== 'all' && (
                     <span className="ml-1 opacity-70">
-                      ({opportunities.filter(o => o.status === pill.value).length})
+                      ({typeFiltered.filter(o => o.status === pill.value).length})
                     </span>
                   )}
                 </button>
@@ -728,7 +1178,7 @@ export default function BacklinksTab({ client }: Props) {
                       <td className="px-3 py-3 hidden lg:table-cell">
                         <span className="flex items-center gap-1 text-xs text-gray-600">
                           {TYPE_ICONS[opp.type]}
-                          {TYPE_LABELS[opp.type]}
+                          {opp.type_label || TYPE_LABELS[opp.type]}
                         </span>
                       </td>
 
@@ -747,13 +1197,13 @@ export default function BacklinksTab({ client }: Props) {
                         <span className="text-xs text-gray-700">{opp.estimated_cost}</span>
                       </td>
 
-                      {/* Acquisition method truncated */}
+                      {/* Acquisition method / action description */}
                       <td className="px-3 py-3 hidden lg:table-cell max-w-[180px]">
                         <span
                           className="text-xs text-gray-600 line-clamp-2"
-                          title={opp.acquisition_method}
+                          title={opp.action_description || opp.acquisition_method}
                         >
-                          {opp.acquisition_method || '—'}
+                          {opp.action_description || opp.acquisition_method || '—'}
                         </span>
                       </td>
 
@@ -803,6 +1253,18 @@ export default function BacklinksTab({ client }: Props) {
           onDelete={async (id) => {
             await deleteOpportunity(id);
             setDrawerOpp(null);
+          }}
+        />
+      )}
+
+      {/* Add Manual Modal */}
+      {showAddModal && (
+        <AddManualModal
+          clientId={client.id}
+          onClose={() => setShowAddModal(false)}
+          onSuccess={() => {
+            setShowAddModal(false);
+            load();
           }}
         />
       )}
