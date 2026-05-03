@@ -33,7 +33,7 @@ function buildTree(pages: PageEntry[]): TreeNode[] {
     url: cat.url,
     meta_title: cat.meta_title,
     children: services
-      .filter(s => s.slug.includes(cat.slug.split('/').pop() ?? ''))
+      .filter(s => s.slug?.includes(cat.slug?.split('/').pop() ?? ''))
       .map(s => ({ label: s.title || s.slug, url: s.url, meta_title: s.meta_title, children: [] })),
   }));
 
