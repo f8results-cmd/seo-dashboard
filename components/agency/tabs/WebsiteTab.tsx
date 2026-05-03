@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ExternalLink, CheckCircle, XCircle, ChevronRight, RefreshCw, BarChart3 } from 'lucide-react';
+import { ExternalLink, CheckCircle, XCircle, ChevronRight, ChevronDown, ChevronUp, RefreshCw, BarChart3 } from 'lucide-react';
 import type { Client } from '@/lib/types';
 
 const RAILWAY_URL = process.env.NEXT_PUBLIC_RAILWAY_URL ?? '';
@@ -72,6 +72,52 @@ function TreeRow({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
         <TreeRow key={i} node={child} depth={depth + 1} />
       ))}
     </>
+  );
+}
+
+function Ga4SetupGuide({ businessName, city, liveUrl }: { businessName: string; city: string | null; liveUrl: string | null }) {
+  const [open, setOpen] = useState(false);
+  const tz = city ? `Australia / ${city}` : 'Australia / Sydney';
+  const url = liveUrl ?? 'your-website.com.au';
+
+  const steps: React.ReactNode[] = [
+    <>Go to <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer" className="text-[#E8622A] underline">analytics.google.com</a> signed in with the figure8results Google account</>,
+    <>Click <strong>Admin</strong> (gear icon, bottom left)</>,
+    <>Click <strong>Create → Property</strong></>,
+    <>Property name: <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{businessName}</code></>,
+    <>Reporting time zone: <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{tz}</code></>,
+    <>Currency: <strong>AUD</strong> — then click Next, fill in industry, click Create</>,
+    <>Set up a data stream: choose <strong>Web</strong></>,
+    <>Website URL: <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{url}</code></>,
+    <>Stream name: <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{businessName}</code> — click Create stream</>,
+    <>Copy the <strong>Measurement ID</strong> (starts with G-) shown at the top of the data stream</>,
+    <>Paste it into the <strong>Analytics &amp; Tracking</strong> section of Edit Client and save</>,
+    <>Click <strong>Redeploy with analytics</strong> button above — wait ~5 minutes</>,
+    <>Wait 24 hours — GA4 begins collecting data automatically</>,
+  ];
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
+      >
+        <span>How to set up GA4 for this client</span>
+        {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+      </button>
+      {open && (
+        <div className="p-5 border-t border-gray-200">
+          <ol className="space-y-2.5">
+            {steps.map((step, i) => (
+              <li key={i} className="flex gap-3 text-sm text-gray-700">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[#E8622A]/10 text-[#E8622A] text-xs font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -166,6 +212,13 @@ export default function WebsiteTab({ client }: { client: Client }) {
           </div>
         )}
       </div>
+
+      {/* GA4 setup guide */}
+      <Ga4SetupGuide
+        businessName={client.business_name}
+        city={client.city ?? null}
+        liveUrl={client.live_url}
+      />
     </div>
   );
 }

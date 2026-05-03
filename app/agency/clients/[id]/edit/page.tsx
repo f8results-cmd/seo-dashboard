@@ -588,16 +588,10 @@ export default function EditClientPage() {
 
       {/* ── Integrations ── */}
       <Section title="Integrations">
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="GHL Sub-account ID">
-            <input className={cls.input} value={form.ghl_location_id}
-              onChange={e => handleChange('ghl_location_id', e.target.value)} />
-          </Field>
-          <Field label="Google Tag ID">
-            <input className={cls.input} value={form.google_tag_id}
-              onChange={e => handleChange('google_tag_id', e.target.value)} placeholder="G-XXXXXXXXXX" />
-          </Field>
-        </div>
+        <Field label="GHL Sub-account ID">
+          <input className={cls.input} value={form.ghl_location_id}
+            onChange={e => handleChange('ghl_location_id', e.target.value)} />
+        </Field>
         <Field label="GHL API Key">
           <input className={cls.input} type="password" value={form.ghl_api_key}
             onChange={e => handleChange('ghl_api_key', e.target.value)} placeholder="Bearer token" />
@@ -605,6 +599,21 @@ export default function EditClientPage() {
         <Field label="GHL Webhook URL">
           <input className={cls.input} type="url" value={form.ghl_webhook_url}
             onChange={e => handleChange('ghl_webhook_url', e.target.value)} placeholder="https://..." />
+        </Field>
+      </Section>
+
+      {/* ── Analytics & Tracking ── */}
+      <Section title="Analytics &amp; Tracking">
+        <Field
+          label="Google Analytics 4 Measurement ID"
+          hint="Optional. Create a free GA4 property at analytics.google.com, copy the Measurement ID from the data stream settings."
+        >
+          <input
+            className={cls.input}
+            value={form.google_tag_id}
+            onChange={e => handleChange('google_tag_id', e.target.value)}
+            placeholder="G-XXXXXXXXXX"
+          />
         </Field>
       </Section>
 

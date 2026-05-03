@@ -69,13 +69,60 @@ const MONTH_OPTIONS = generateMonthOptions();
 const CHART_LINES: { key: keyof Metric; label: string; color: string }[] = [
   { key: 'gbp_calls', label: 'GBP Calls', color: '#E8622A' },
   { key: 'gbp_website_clicks', label: 'GBP Web Clicks', color: '#1a2744' },
-  { key: 'gbp_profile_views', label: 'Profile Views', color: '#6366f1' },
   { key: 'website_form_submissions', label: 'Form Submissions', color: '#10b981' },
   { key: 'website_phone_clicks', label: 'Phone Clicks', color: '#f59e0b' },
 ];
 
 const inputCls =
   'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30';
+
+// ── GA4 Setup Guide ────────────────────────────────────────────────────────────
+
+function Ga4SetupGuide({ businessName, city, liveUrl }: { businessName: string; city: string | null; liveUrl: string | null }) {
+  const [open, setOpen] = useState(false);
+  const tz = city ? `Australia / ${city}` : 'Australia / Sydney';
+  const url = liveUrl ?? 'your-website.com.au';
+
+  const steps = [
+    <>Go to <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer" className="text-[#E8622A] underline">analytics.google.com</a> signed in with the figure8results Google account</>,
+    <>Click <strong>Admin</strong> (gear icon, bottom left)</>,
+    <>Click <strong>Create → Property</strong></>,
+    <>Property name: <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{businessName}</code></>,
+    <>Reporting time zone: <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{tz}</code></>,
+    <>Currency: <strong>AUD</strong> — then click Next, fill in industry, click Create</>,
+    <>Set up a data stream: choose <strong>Web</strong></>,
+    <>Website URL: <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{url}</code></>,
+    <>Stream name: <code className="bg-gray-100 px-1 py-0.5 rounded text-xs">{businessName}</code> — click Create stream</>,
+    <>Copy the <strong>Measurement ID</strong> (starts with G-) shown at the top of the data stream</>,
+    <>Paste it into the <strong>Google Analytics 4 Measurement ID</strong> field in Edit Client and save</>,
+    <>Click <strong>Redeploy with analytics</strong> on the Website tab — wait ~5 minutes</>,
+    <>Wait 24 hours — GA4 begins collecting data automatically. Check <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer" className="text-[#E8622A] underline">analytics.google.com</a> to confirm</>,
+  ];
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
+      >
+        <span>How to set up GA4 for this client</span>
+        {open ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+      </button>
+      {open && (
+        <div className="p-5 border-t border-gray-200">
+          <ol className="space-y-2.5">
+            {steps.map((step, i) => (
+              <li key={i} className="flex gap-3 text-sm text-gray-700">
+                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-[#E8622A]/10 text-[#E8622A] text-xs font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Comparison Card ────────────────────────────────────────────────────────────
 
@@ -118,12 +165,6 @@ const EMPTY_FORM = {
   month_year: MONTH_OPTIONS[0],
   gbp_calls: '',
   gbp_website_clicks: '',
-  gbp_profile_views: '',
-  gbp_direction_requests: '',
-  gbp_photo_views: '',
-  gbp_messages: '',
-  website_total_visits: '',
-  website_unique_visitors: '',
   website_form_submissions: '',
   website_phone_clicks: '',
   notes: '',
@@ -134,6 +175,7 @@ type FormState = typeof EMPTY_FORM;
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function MonthlyMetricsTab({ client }: { client: Client }) {
+  const liveUrl = (client.website_data as Record<string, unknown> | null)?.live_url as string | null ?? client.live_url;
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [ga4Status, setGa4Status] = useState<GA4Status | null>(null);
   const [loading, setLoading] = useState(true);
@@ -199,7 +241,6 @@ export default function MonthlyMetricsTab({ client }: { client: Client }) {
     month: formatMonthYear(m.month_year),
     gbp_calls: m.gbp_calls,
     gbp_website_clicks: m.gbp_website_clicks,
-    gbp_profile_views: m.gbp_profile_views,
     website_form_submissions: m.website_form_submissions,
     website_phone_clicks: m.website_phone_clicks,
   }));
@@ -232,12 +273,6 @@ export default function MonthlyMetricsTab({ client }: { client: Client }) {
       month_year: m.month_year,
       gbp_calls: String(m.gbp_calls),
       gbp_website_clicks: String(m.gbp_website_clicks),
-      gbp_profile_views: String(m.gbp_profile_views),
-      gbp_direction_requests: String(m.gbp_direction_requests),
-      gbp_photo_views: String(m.gbp_photo_views),
-      gbp_messages: String(m.gbp_messages),
-      website_total_visits: String(m.website_total_visits),
-      website_unique_visitors: String(m.website_unique_visitors),
       website_form_submissions: String(m.website_form_submissions),
       website_phone_clicks: String(m.website_phone_clicks),
       notes: m.notes ?? '',
@@ -265,12 +300,6 @@ export default function MonthlyMetricsTab({ client }: { client: Client }) {
         month_year: form.month_year,
         gbp_calls: Number(form.gbp_calls) || 0,
         gbp_website_clicks: Number(form.gbp_website_clicks) || 0,
-        gbp_profile_views: Number(form.gbp_profile_views) || 0,
-        gbp_direction_requests: Number(form.gbp_direction_requests) || 0,
-        gbp_photo_views: Number(form.gbp_photo_views) || 0,
-        gbp_messages: Number(form.gbp_messages) || 0,
-        website_total_visits: Number(form.website_total_visits) || 0,
-        website_unique_visitors: Number(form.website_unique_visitors) || 0,
         website_form_submissions: Number(form.website_form_submissions) || 0,
         website_phone_clicks: Number(form.website_phone_clicks) || 0,
         notes: form.notes || null,
@@ -366,9 +395,9 @@ export default function MonthlyMetricsTab({ client }: { client: Client }) {
           previous={previousMonth ? previousMonth.gbp_calls : null}
         />
         <ComparisonCard
-          label="Profile Views"
-          current={currentMonth ? currentMonth.gbp_profile_views : null}
-          previous={previousMonth ? previousMonth.gbp_profile_views : null}
+          label="GBP Web Clicks"
+          current={currentMonth ? currentMonth.gbp_website_clicks : null}
+          previous={previousMonth ? previousMonth.gbp_website_clicks : null}
         />
         <ComparisonCard
           label="Form Submissions"
@@ -487,26 +516,11 @@ export default function MonthlyMetricsTab({ client }: { client: Client }) {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Left: GBP Metrics */}
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">GBP Metrics</p>
-                  {numField('Calls', 'gbp_calls')}
-                  {numField('Website Clicks', 'gbp_website_clicks')}
-                  {numField('Profile Views', 'gbp_profile_views')}
-                  {numField('Direction Requests', 'gbp_direction_requests')}
-                  {numField('Photo Views', 'gbp_photo_views')}
-                  {numField('Messages', 'gbp_messages')}
-                </div>
-
-                {/* Right: Website Metrics */}
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Website Metrics</p>
-                  {numField('Total Visits', 'website_total_visits')}
-                  {numField('Unique Visitors', 'website_unique_visitors')}
-                  {numField('Form Submissions', 'website_form_submissions')}
-                  {numField('Phone Clicks', 'website_phone_clicks')}
-                </div>
+              <div className="grid grid-cols-2 gap-4">
+                {numField('GBP Calls', 'gbp_calls')}
+                {numField('GBP Web Clicks', 'gbp_website_clicks')}
+                {numField('Form Submissions', 'website_form_submissions')}
+                {numField('Phone Clicks', 'website_phone_clicks')}
               </div>
 
               {/* Notes */}
@@ -544,7 +558,14 @@ export default function MonthlyMetricsTab({ client }: { client: Client }) {
         )}
       </div>
 
-      {/* Section 5: Historical table */}
+      {/* Section 5: GA4 setup guide */}
+      <Ga4SetupGuide
+        businessName={client.business_name}
+        city={client.city ?? null}
+        liveUrl={liveUrl}
+      />
+
+      {/* Section 6: Historical table */}
       <div className="border border-gray-200 rounded-xl overflow-hidden">
         {sortedDesc.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-10">
@@ -558,7 +579,6 @@ export default function MonthlyMetricsTab({ client }: { client: Client }) {
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Month</th>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Calls</th>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Web Clicks</th>
-                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">Profile Views</th>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Form Subs</th>
                   <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Phone Clicks</th>
                   <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">Notes</th>
@@ -577,7 +597,6 @@ export default function MonthlyMetricsTab({ client }: { client: Client }) {
                       </td>
                       <td className="px-4 py-3 text-right text-gray-600">{m.gbp_calls.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right text-gray-600 hidden sm:table-cell">{m.gbp_website_clicks.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-right text-gray-600 hidden md:table-cell">{m.gbp_profile_views.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right text-gray-600">{m.website_form_submissions.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right text-gray-600">{m.website_phone_clicks.toLocaleString()}</td>
                       <td className="px-4 py-3 text-gray-500 hidden lg:table-cell max-w-[200px] truncate">
