@@ -1,13 +1,27 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, Trash2, ChevronDown, ChevronUp, Plus, Lightbulb, ExternalLink } from 'lucide-react';
+import { RefreshCw, Trash2, ChevronDown, ChevronUp, Plus, Lightbulb, ExternalLink, X } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const RAILWAY_URL = process.env.NEXT_PUBLIC_RAILWAY_URL ?? '';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
+
+interface HeatmapReport {
+  id: string;
+  client_id: string;
+  keyword: string;
+  scan_date: string;
+  average_rank: number | null;
+  top_rank: number | null;
+  top_3_percentage: number | null;
+  screenshot_path: string | null;
+  notes: string | null;
+  created_at: string;
+}
 
 interface HistoryPoint {
   date: string;
@@ -47,6 +61,14 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-AU', {
     day: 'numeric',
     month: 'short',
+    year: 'numeric',
+  });
+}
+
+function formatScanDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-AU', {
+    day: 'numeric',
+    month: 'long',
     year: 'numeric',
   });
 }
@@ -134,6 +156,414 @@ function Sparkline({ history }: { history: HistoryPoint[] }) {
 
 const inputCls =
   'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30';
+
+// ── Today's date in YYYY-MM-DD ─────────────────────────────────────────────────
+
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// ── Heatmap Section ────────────────────────────────────────────────────────────
+
+function HeatmapSection({ clientId }: { clientId: string }) {
+  const [reports, setReports] = useState<HeatmapReport[]>([]);
+  const [loadingReports, setLoadingReports] = useState(true);
+
+  // Add modal
+  const [showModal, setShowModal] = useState(false);
+  const [modalKeyword, setModalKeyword] = useState('');
+  const [modalScanDate, setModalScanDate] = useState(todayIso());
+  const [modalScreenshot, setModalScreenshot] = useState<File | null>(null);
+  const [modalAvgRank, setModalAvgRank] = useState('');
+  const [modalTopRank, setModalTopRank] = useState('');
+  const [modalTop3Pct, setModalTop3Pct] = useState('');
+  const [modalNotes, setModalNotes] = useState('');
+  const [modalSaving, setModalSaving] = useState(false);
+  const [modalError, setModalError] = useState('');
+
+  // Delete confirm per card
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
+
+  // Lightbox
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
+  const loadReports = useCallback(async () => {
+    setLoadingReports(true);
+    try {
+      const res = await fetch(`${RAILWAY_URL}/heatmap-reports/${clientId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setReports(data.reports ?? []);
+      }
+    } catch (err) {
+      console.error('Failed to load heatmap reports:', err);
+    } finally {
+      setLoadingReports(false);
+    }
+  }, [clientId]);
+
+  useEffect(() => { loadReports(); }, [loadReports]);
+
+  function resetModal() {
+    setModalKeyword('');
+    setModalScanDate(todayIso());
+    setModalScreenshot(null);
+    setModalAvgRank('');
+    setModalTopRank('');
+    setModalTop3Pct('');
+    setModalNotes('');
+    setModalError('');
+  }
+
+  async function handleSaveReport(e: React.FormEvent) {
+    e.preventDefault();
+    if (!modalKeyword.trim()) return;
+    setModalSaving(true);
+    setModalError('');
+
+    try {
+      let screenshotPath: string | null = null;
+
+      // Upload screenshot to Supabase Storage if provided
+      if (modalScreenshot) {
+        const supabase = createClient();
+        const ext = modalScreenshot.name.split('.').pop();
+        const filename = `${Date.now()}.${ext}`;
+        const storagePath = `heatmaps/${clientId}/${filename}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('client-files')
+          .upload(storagePath, modalScreenshot, { upsert: true });
+
+        if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+
+        const { data: urlData } = supabase.storage
+          .from('client-files')
+          .getPublicUrl(storagePath);
+
+        screenshotPath = urlData.publicUrl;
+      }
+
+      // POST to Railway
+      const res = await fetch(`${RAILWAY_URL}/heatmap-reports/${clientId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: modalKeyword.trim(),
+          scan_date: modalScanDate,
+          average_rank: modalAvgRank ? Number(modalAvgRank) : null,
+          top_rank: modalTopRank ? Number(modalTopRank) : null,
+          top_3_percentage: modalTop3Pct ? Number(modalTop3Pct) : null,
+          screenshot_path: screenshotPath,
+          notes: modalNotes.trim() || null,
+        }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      resetModal();
+      setShowModal(false);
+      await loadReports();
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Failed to save. Please try again.');
+      console.error(err);
+    } finally {
+      setModalSaving(false);
+    }
+  }
+
+  async function handleDeleteReport(id: string) {
+    setDeletingId(id);
+    try {
+      const res = await fetch(`${RAILWAY_URL}/heatmap-reports/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setConfirmingDeleteId(null);
+      await loadReports();
+    } catch (err) {
+      console.error('Failed to delete report:', err);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  // Sort newest first
+  const sorted = [...reports].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Section header */}
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-[#1a2744]">Heatmap Reports</h3>
+        <button
+          onClick={() => { resetModal(); setShowModal(true); }}
+          className="flex items-center gap-1.5 bg-[#E8622A] hover:bg-[#d4561f] text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Add report
+        </button>
+      </div>
+
+      {/* Cards grid */}
+      {loadingReports ? (
+        <p className="text-sm text-gray-400">Loading heatmap reports…</p>
+      ) : sorted.length === 0 ? (
+        <div className="border border-gray-200 rounded-xl py-10 text-center">
+          <p className="text-sm text-gray-400">No heatmap reports yet — add your first scan above.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sorted.map(report => {
+            const isConfirming = confirmingDeleteId === report.id;
+            const isDeleting = deletingId === report.id;
+
+            return (
+              <div
+                key={report.id}
+                className="border border-gray-200 rounded-xl overflow-hidden bg-white relative"
+              >
+                {/* Screenshot */}
+                <div
+                  className="w-full h-40 bg-gray-100 cursor-pointer overflow-hidden flex items-center justify-center"
+                  onClick={() => report.screenshot_path && setLightboxUrl(report.screenshot_path)}
+                >
+                  {report.screenshot_path ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={report.screenshot_path}
+                      alt={`${report.keyword} heatmap`}
+                      className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-gray-400">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                        <span className="text-xs">📷</span>
+                      </div>
+                      <span className="text-xs">No screenshot</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card body */}
+                <div className="p-4 space-y-3">
+                  <div>
+                    <p className="font-semibold text-gray-900 text-sm">{report.keyword}</p>
+                    <p className="text-xs text-gray-500">{formatScanDate(report.scan_date)}</p>
+                  </div>
+
+                  {/* Stat tiles */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-gray-50 rounded-lg p-2 text-center">
+                      <p className="text-xs text-gray-500 leading-tight">Avg Rank</p>
+                      <p className="text-sm font-bold text-[#1a2744]">
+                        {report.average_rank !== null ? `#${report.average_rank}` : '—'}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-2 text-center">
+                      <p className="text-xs text-gray-500 leading-tight">Top Rank</p>
+                      <p className="text-sm font-bold text-[#1a2744]">
+                        {report.top_rank !== null ? `#${report.top_rank}` : '—'}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-2 text-center">
+                      <p className="text-xs text-gray-500 leading-tight">Top 3%</p>
+                      <p className="text-sm font-bold text-[#1a2744]">
+                        {report.top_3_percentage !== null ? `${report.top_3_percentage}%` : '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  {report.notes && (
+                    <p className="text-xs text-gray-500 truncate">{report.notes}</p>
+                  )}
+
+                  {/* Delete */}
+                  <div className="pt-1">
+                    {isConfirming ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-600">Are you sure?</span>
+                        <button
+                          onClick={() => handleDeleteReport(report.id)}
+                          disabled={isDeleting}
+                          className="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-0.5 rounded transition-colors disabled:opacity-50"
+                        >
+                          {isDeleting ? '…' : 'Yes, delete'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmingDeleteId(null)}
+                          className="text-xs text-gray-500 hover:text-gray-700"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmingDeleteId(report.id)}
+                        className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add report modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => { setShowModal(false); resetModal(); }}
+          />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <h3 className="font-semibold text-[#1a2744]">Add Heatmap Report</h3>
+              <button
+                onClick={() => { setShowModal(false); resetModal(); }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveReport} className="p-5 space-y-4">
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Keyword <span className="text-red-400">*</span></label>
+                <input
+                  value={modalKeyword}
+                  onChange={e => setModalKeyword(e.target.value)}
+                  placeholder="e.g. car detailing Adelaide"
+                  required
+                  className={inputCls}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Scan date</label>
+                <input
+                  type="date"
+                  value={modalScanDate}
+                  onChange={e => setModalScanDate(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Screenshot (jpg, png, webp)</label>
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp"
+                  onChange={e => setModalScreenshot(e.target.files?.[0] ?? null)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30 file:mr-3 file:border-0 file:bg-gray-100 file:text-gray-700 file:rounded file:px-2 file:py-0.5 file:text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Average rank</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    value={modalAvgRank}
+                    onChange={e => setModalAvgRank(e.target.value)}
+                    placeholder="e.g. 4.2"
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Top rank</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={modalTopRank}
+                    onChange={e => setModalTopRank(e.target.value)}
+                    placeholder="e.g. 1"
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Top 3 %</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={modalTop3Pct}
+                    onChange={e => setModalTop3Pct(e.target.value)}
+                    placeholder="e.g. 68"
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">Notes (optional)</label>
+                <textarea
+                  value={modalNotes}
+                  onChange={e => setModalNotes(e.target.value)}
+                  rows={3}
+                  placeholder="Any observations about this scan…"
+                  className={inputCls}
+                />
+              </div>
+
+              {modalError && <p className="text-xs text-red-500">{modalError}</p>}
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={modalSaving || !modalKeyword.trim()}
+                  className="bg-[#E8622A] hover:bg-[#d4561f] text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  {modalSaving ? 'Saving…' : 'Save report'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowModal(false); resetModal(); }}
+                  className="border border-gray-200 bg-white text-gray-600 px-4 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
+            onClick={() => setLightboxUrl(null)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxUrl}
+            alt="Heatmap screenshot"
+            className="max-w-full max-h-full rounded-lg shadow-2xl object-contain"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -294,6 +724,12 @@ export default function RankTrackingTab({ clientId }: { clientId: string }) {
 
   return (
     <div className="p-6 space-y-5">
+
+      {/* ── Heatmap Reports section ── */}
+      <HeatmapSection clientId={clientId} />
+
+      {/* Divider */}
+      <hr className="border-gray-200" />
 
       {/* Header row */}
       <div className="flex items-center justify-between gap-4">
