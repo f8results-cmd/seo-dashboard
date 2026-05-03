@@ -3,12 +3,24 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const ALLOWED_CLIENT_FIELDS = new Set([
   'business_name', 'owner_name', 'status', 'health_score', 'niche', 'city', 'state',
-  'live_url', 'phone', 'email', 'ghl_location_id', 'ghl_webhook_url', 'ghl_social_planner_url',
-  'logo_url', 'photo_drive_url', 'inspiration_url', 'onboarding_date', 'onboarding_checklist',
+  'postcode', 'address', 'tagline', 'years_in_business',
+  'live_url', 'website_url', 'gbp_url', 'gbp_location_name', 'google_place_id',
+  'google_maps_embed_url', 'github_repo',
+  'phone', 'email',
+  'ghl_location_id', 'ghl_api_key', 'ghl_webhook_url', 'ghl_social_planner_url',
+  'google_tag_id',
+  'logo_url', 'brand_primary_color', 'brand_accent_color',
+  'photo_drive_url', 'inspiration_url', 'onboarding_date', 'onboarding_checklist',
   'staff_checklist', 'website_data', 'photos', 'manages_website', 'can_make_changes',
+  'webmaster_contact', 'access_notes', 'website_hosting', 'domain_registrar', 'domain_owner',
+  'we_host_website', 'hosting_platform', 'hosting_cost_monthly', 'hosting_included_in_plan',
+  'external_hosting_location',
   'last_friday_update', 'gbp_post_count', 'gbp_primary_category', 'gbp_secondary_categories',
   'primary_keywords', 'suburb_pages', 'has_ghl', 'rollout_is_auto',
+  'review_count', 'review_rating', 'auto_respond_reviews',
+  'skip_website', 'blog_delivery',
   'agency_notes', 'manual_services', 'target_suburbs', 'competitor_research_files',
+  'hours',
 ]);
 
 export async function PATCH(
