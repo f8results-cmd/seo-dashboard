@@ -1,7 +1,10 @@
 'use client';
 
-import { ExternalLink, Github, CheckCircle, XCircle, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { ExternalLink, CheckCircle, XCircle, ChevronRight, RefreshCw, BarChart3 } from 'lucide-react';
 import type { Client } from '@/lib/types';
+
+const RAILWAY_URL = process.env.NEXT_PUBLIC_RAILWAY_URL ?? '';
 
 interface PageEntry {
   page_type: string;
@@ -92,12 +95,57 @@ export default function WebsiteTab({ client }: { client: Client }) {
   const manifest = wd.page_manifest as { pages?: PageEntry[] } | undefined;
   const pages: PageEntry[] = manifest?.pages ?? [];
   const tree = buildTree(pages);
+  const [redeploying, setRedeploying] = useState(false);
+  const [redeployMsg, setRedeployMsg] = useState('');
+
+  async function handleRedeploy() {
+    if (!RAILWAY_URL) return;
+    setRedeploying(true);
+    setRedeployMsg('');
+    try {
+      const res = await fetch(`${RAILWAY_URL}/run-gbp/${client.id}`, { method: 'POST' });
+      setRedeployMsg(res.ok ? 'Redeploy triggered — site will update in ~5 minutes.' : `Error: ${res.status}`);
+    } catch {
+      setRedeployMsg('Failed to reach backend.');
+    }
+    setRedeploying(false);
+  }
 
   return (
     <div className="p-6 space-y-6">
       {/* Connection status */}
       <div>
-        <h3 className="font-semibold text-gray-900 mb-3">Connection Status</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-900">Connection Status</h3>
+          <div className="flex items-center gap-2">
+            {client.google_tag_id && (
+              <a
+                href="https://analytics.google.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full hover:bg-green-100 transition-colors"
+              >
+                <BarChart3 className="w-3 h-3" /> GA4 {client.google_tag_id}
+              </a>
+            )}
+            {client.live_url && (
+              <button
+                onClick={handleRedeploy}
+                disabled={redeploying}
+                className="inline-flex items-center gap-1.5 text-xs text-gray-600 border border-gray-200 px-2.5 py-1 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${redeploying ? 'animate-spin' : ''}`} />
+                {redeploying ? 'Redeploying…' : 'Redeploy with analytics'}
+              </button>
+            )}
+          </div>
+        </div>
+        {redeployMsg && <p className={`text-xs mb-2 ${redeployMsg.startsWith('Error') || redeployMsg.startsWith('Failed') ? 'text-red-500' : 'text-green-600'}`}>{redeployMsg}</p>}
+        {!client.google_tag_id && (
+          <div className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            GA4 not configured — add a Measurement ID (G-XXXXXXXXXX) in Edit Client to enable analytics tracking.
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <StatusCard label="Live URL" value={client.live_url} ok={!!client.live_url} />
           <StatusCard label="GitHub Repo" value={client.github_repo ? `github.com/${client.github_repo}` : null} ok={!!client.github_repo} />

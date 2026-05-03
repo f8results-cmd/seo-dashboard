@@ -3,53 +3,51 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { Client } from '@/lib/types';
-import RolloutChecklistTab from './tabs/RolloutChecklistTab';
-import GBPSetupTab         from './tabs/GBPSetupTab';
-import GBPPostsTab         from './tabs/GBPPostsTab';
-import WebsiteTab          from './tabs/WebsiteTab';
-import CitationsTab        from './tabs/CitationsTab';
-import SEOHealthTab        from './tabs/SEOHealthTab';
-import PhotosTab           from './tabs/PhotosTab';
-import ReviewsTab          from './tabs/ReviewsTab';
-import BacklinksTab        from './tabs/BacklinksTab';
-import AIEditorTab         from './tabs/AIEditorTab';
-import RankTrackingTab     from './tabs/RankTrackingTab';
-import FridayUpdateTab     from './tabs/FridayUpdateTab';
+import RolloutChecklistTab  from './tabs/RolloutChecklistTab';
+import GBPSetupTab          from './tabs/GBPSetupTab';
+import GBPPostsTab          from './tabs/GBPPostsTab';
+import WebsiteTab           from './tabs/WebsiteTab';
+import PhotosTab            from './tabs/PhotosTab';
+import ReviewsTab           from './tabs/ReviewsTab';
+import BacklinksTab         from './tabs/BacklinksTab';
+import AIEditorTab          from './tabs/AIEditorTab';
+import RankTrackingTab      from './tabs/RankTrackingTab';
+import FridayUpdateTab      from './tabs/FridayUpdateTab';
+import MonthlyMetricsTab    from './tabs/MonthlyMetricsTab';
+
 interface Props {
   client: Client;
   onRefresh?: () => void;
 }
 
 const TABS = [
-  { id: 'rollout',      label: 'Rollout Checklist' },
-  { id: 'gbp-setup',   label: 'GBP Setup' },
-  { id: 'gbp-posts',   label: 'GBP Posts' },
-  { id: 'website',     label: 'Website' },
-  { id: 'citations',   label: 'Citations' },
-  { id: 'seo-health',  label: 'SEO Health' },
-  { id: 'photos',      label: 'Photos' },
-  { id: 'reviews',     label: 'Reviews' },
-  { id: 'backlinks',   label: 'Backlinks' },
-  { id: 'rank-tracking', label: 'Rank Tracking' },
-  { id: 'ai-editor',   label: 'AI Editor' },
-  { id: 'friday',      label: 'Friday Updates' },
+  { id: 'rollout',         label: 'Rollout Checklist' },
+  { id: 'gbp-setup',      label: 'GBP Setup' },
+  { id: 'gbp-posts',      label: 'GBP Posts' },
+  { id: 'website',        label: 'Website' },
+  { id: 'photos',         label: 'Photos' },
+  { id: 'reviews',        label: 'Reviews' },
+  { id: 'backlinks',      label: 'Backlinks & Citations' },
+  { id: 'rank-tracking',  label: 'Rank Tracking' },
+  { id: 'monthly-metrics',label: 'Monthly Metrics' },
+  { id: 'ai-editor',      label: 'AI Editor' },
+  { id: 'friday',         label: 'Friday Updates' },
 ];
 
 function renderTabContent(tabId: string, client: Client, onRefresh?: () => void) {
   switch (tabId) {
-    case 'rollout':   return <RolloutChecklistTab client={client} />;
-    case 'gbp-setup': return <GBPSetupTab client={client} />;
-    case 'gbp-posts': return <GBPPostsTab client={client} />;
-    case 'website':   return <WebsiteTab client={client} />;
-    case 'citations': return <CitationsTab client={client} />;
-    case 'seo-health':return <SEOHealthTab client={client} />;
-    case 'photos':    return <PhotosTab client={client} onUpdate={onRefresh} />;
-    case 'reviews':   return <ReviewsTab client={client} />;
-    case 'backlinks':     return <BacklinksTab client={client} />;
-    case 'rank-tracking': return <RankTrackingTab clientId={client.id} />;
-    case 'ai-editor':     return <AIEditorTab client={client} />;
-    case 'friday':        return <FridayUpdateTab client={client} />;
-    default:              return null;
+    case 'rollout':          return <RolloutChecklistTab client={client} />;
+    case 'gbp-setup':        return <GBPSetupTab client={client} />;
+    case 'gbp-posts':        return <GBPPostsTab client={client} />;
+    case 'website':          return <WebsiteTab client={client} />;
+    case 'photos':           return <PhotosTab client={client} onUpdate={onRefresh} />;
+    case 'reviews':          return <ReviewsTab client={client} />;
+    case 'backlinks':        return <BacklinksTab client={client} />;
+    case 'rank-tracking':    return <RankTrackingTab clientId={client.id} />;
+    case 'monthly-metrics':  return <MonthlyMetricsTab client={client} />;
+    case 'ai-editor':        return <AIEditorTab client={client} />;
+    case 'friday':           return <FridayUpdateTab client={client} />;
+    default:                 return null;
   }
 }
 
@@ -58,7 +56,6 @@ export default function ClientDetailTabs({ client, onRefresh }: Props) {
   const router = useRouter();
   const activeTab = searchParams.get('tab') ?? 'rollout';
 
-  // Track which tabs have been visited — each tab mounts once and stays in the DOM
   const validActiveTab = TABS.some(t => t.id === activeTab) ? activeTab : 'rollout';
   const [loadedTabs, setLoadedTabs] = useState<Set<string>>(() => new Set([validActiveTab]));
 
@@ -71,7 +68,6 @@ export default function ClientDetailTabs({ client, onRefresh }: Props) {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      {/* Tab bar */}
       <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50 scrollbar-hide">
         {TABS.map(tab => (
           <button
@@ -88,7 +84,6 @@ export default function ClientDetailTabs({ client, onRefresh }: Props) {
         ))}
       </div>
 
-      {/* Tab content — only mount each tab on first visit, then show/hide to avoid re-fetching */}
       <div>
         {TABS.map(tab =>
           loadedTabs.has(tab.id) ? (
