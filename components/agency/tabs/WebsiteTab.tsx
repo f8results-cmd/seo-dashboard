@@ -151,11 +151,11 @@ export default function WebsiteTab({ client }: { client: Client }) {
     setRedeploying(true);
     setRedeployMsg('');
     try {
-      const res = await fetch(`${RAILWAY_URL}/inject-analytics/${client.id}`, { method: 'POST' });
+      const res = await fetch(`/api/clients/${client.id}/inject-analytics`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       setRedeployMsg(res.ok
         ? 'GA4 tag injected — Vercel will rebuild in ~2 minutes. Manual edits are preserved.'
-        : `Error: ${data?.detail ?? res.status}`
+        : `Error: ${data?.error ?? res.status}`
       );
     } catch {
       setRedeployMsg('Failed to reach backend.');
