@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { format, parseISO } from 'date-fns';
-import { CheckCircle, XCircle, Send, Edit3, ChevronDown, ChevronUp, Clock, FileText, MessageSquare, Camera, BarChart2, RefreshCw } from 'lucide-react';
+import { CheckCircle, XCircle, Send, Edit3, ChevronDown, ChevronUp, Clock, FileText, MessageSquare, Camera, BarChart2, RefreshCw, X, ImageIcon } from 'lucide-react';
 import type { ApprovalQueueItem, ApprovalActionType } from '@/lib/types';
 
 const ACTION_ICONS: Record<ApprovalActionType, React.ReactNode> = {
@@ -29,6 +29,15 @@ const STATUS_STYLES: Record<string, string> = {
   error:     'bg-red-100 text-red-700',
 };
 
+interface ClientPhoto {
+  id: string;
+  public_url: string;
+  filename: string;
+  caption: string | null;
+  tags: string[];
+  uploaded_at: string;
+}
+
 function getPreview(item: ApprovalQueueItem): string {
   const d = item.edited_content ?? item.content_data;
   const text = (d as Record<string, unknown>)['post_text'] as string
@@ -48,6 +57,11 @@ function getFullText(item: ApprovalQueueItem): string {
   );
 }
 
+function getPhotoUrl(item: ApprovalQueueItem): string | null {
+  const d = item.content_data as Record<string, unknown>;
+  return (d['photo_url'] as string) ?? null;
+}
+
 interface Props { initialItems: ApprovalQueueItem[] }
 
 export default function ApprovalsClient({ initialItems }: Props) {
@@ -60,6 +74,12 @@ export default function ApprovalsClient({ initialItems }: Props) {
   const [working, setWorking]           = useState<Set<string>>(new Set());
   const [msg, setMsg]                   = useState<Record<string, string>>({});
   const [refreshing, setRefreshing]     = useState(false);
+
+  // Photo modal state
+  const [photoModal, setPhotoModal]   = useState<ApprovalQueueItem | null>(null);
+  const [clientPhotos, setClientPhotos] = useState<ClientPhoto[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [photoWorking, setPhotoWorking]   = useState<string | null>(null);
 
   const pendingCount = items.filter(i => i.status === 'pending').length;
 
@@ -85,7 +105,6 @@ export default function ApprovalsClient({ initialItems }: Props) {
   async function refresh() {
     setRefreshing(true);
     try {
-      // Re-fetch from server
       const res = await fetch('/agency/approvals?_refresh=1');
       if (res.ok) window.location.reload();
     } finally {
@@ -192,6 +211,41 @@ export default function ApprovalsClient({ initialItems }: Props) {
     for (const item of pending) await approve(item);
   }
 
+  // ── Photo attachment ───────────────────────────────────────────────────────
+
+  async function openPhotoModal(item: ApprovalQueueItem) {
+    setPhotoModal(item);
+    setClientPhotos([]);
+    setPhotosLoading(true);
+    try {
+      const res = await fetch(`/api/clients/${item.client_id}/photos`);
+      if (res.ok) setClientPhotos(await res.json());
+    } finally {
+      setPhotosLoading(false);
+    }
+  }
+
+  async function attachPhoto(photoUrl: string | null) {
+    if (!photoModal) return;
+    const itemId = photoModal.id;
+    setPhotoWorking(itemId);
+    try {
+      const res = await fetch(`/api/approval-queue/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ photo_url: photoUrl }),
+      });
+      if (res.ok) {
+        const currentData = items.find(i => i.id === itemId)?.content_data ?? {};
+        const newContentData = { ...(currentData as Record<string, unknown>), photo_url: photoUrl };
+        patchItem(itemId, { content_data: newContentData as Record<string, unknown> });
+        setPhotoModal(null);
+      }
+    } finally {
+      setPhotoWorking(null);
+    }
+  }
+
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       {/* Header */}
@@ -260,6 +314,8 @@ export default function ApprovalsClient({ initialItems }: Props) {
             const preview = getPreview(item);
             const clientName = item.clients?.business_name ?? 'Unknown client';
             const data = item.content_data as Record<string, unknown>;
+            const photoUrl = getPhotoUrl(item);
+            const isGbpPost = item.action_type === 'gbp_post';
 
             return (
               <div key={item.id} className={`bg-white rounded-xl border ${item.status === 'pending' ? 'border-amber-200' : 'border-gray-200'} overflow-hidden`}>
@@ -278,6 +334,11 @@ export default function ApprovalsClient({ initialItems }: Props) {
                       <span className="text-xs text-gray-500">{ACTION_LABELS[item.action_type]}</span>
                       {typeof data.target_suburb === 'string' && (
                         <span className="text-xs text-gray-400 italic">— {data.target_suburb}</span>
+                      )}
+                      {isGbpPost && photoUrl && (
+                        <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
+                          <ImageIcon className="w-3 h-3" /> photo attached
+                        </span>
                       )}
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{preview}</p>
@@ -302,6 +363,13 @@ export default function ApprovalsClient({ initialItems }: Props) {
                 {/* Expanded content */}
                 {isExpanded && (
                   <div className="border-t border-gray-100 p-4 space-y-4">
+                    {/* Attached photo preview */}
+                    {isGbpPost && photoUrl && (
+                      <div className="rounded-lg overflow-hidden border border-gray-200">
+                        <img src={photoUrl} alt="Attached photo" className="w-full max-h-48 object-cover" />
+                      </div>
+                    )}
+
                     {/* Content preview / edit */}
                     {editText !== undefined ? (
                       <div className="space-y-2">
@@ -364,6 +432,23 @@ export default function ApprovalsClient({ initialItems }: Props) {
                         >
                           <Edit3 className="w-3.5 h-3.5" /> Edit
                         </button>
+                        {isGbpPost && (
+                          <button
+                            onClick={() => openPhotoModal(item)}
+                            className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50"
+                          >
+                            <Camera className="w-3.5 h-3.5" />
+                            {photoUrl ? 'Change photo' : 'Attach photo'}
+                          </button>
+                        )}
+                        {isGbpPost && photoUrl && (
+                          <button
+                            onClick={() => attachPhoto(null)}
+                            className="flex items-center gap-1.5 text-sm text-gray-400 border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50"
+                          >
+                            <X className="w-3.5 h-3.5" /> Remove photo
+                          </button>
+                        )}
                         <button
                           onClick={() => approve(item)}
                           disabled={isWorking}
@@ -424,6 +509,89 @@ export default function ApprovalsClient({ initialItems }: Props) {
                 </button>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Photo selection modal */}
+      {photoModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setPhotoModal(null)}>
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Select photo</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{photoModal.clients?.business_name ?? 'Client'} photo library</p>
+              </div>
+              <button onClick={() => setPhotoModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {photosLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <RefreshCw className="w-6 h-6 text-gray-300 animate-spin" />
+                </div>
+              ) : clientPhotos.length === 0 ? (
+                <div className="text-center py-16">
+                  <Camera className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                  <p className="text-sm text-gray-500 font-medium">No photos uploaded yet</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Upload photos via the{' '}
+                    <a
+                      href={`/agency/clients/${photoModal.client_id}?tab=photos`}
+                      className="text-[#E8622A] hover:underline"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Photos tab
+                    </a>
+                    {' '}on this client.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  {clientPhotos.map(photo => (
+                    <button
+                      key={photo.id}
+                      onClick={() => attachPhoto(photo.public_url)}
+                      disabled={photoWorking === photoModal.id}
+                      className="relative group rounded-lg overflow-hidden border-2 border-transparent hover:border-[#E8622A] transition-all disabled:opacity-50"
+                    >
+                      <img
+                        src={photo.public_url}
+                        alt={photo.caption ?? photo.filename}
+                        className="w-full aspect-square object-cover"
+                      />
+                      {photo.caption && (
+                        <div className="absolute inset-x-0 bottom-0 bg-black/50 text-white text-[10px] px-2 py-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                          {photo.caption}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            {getPhotoUrl(photoModal) && (
+              <div className="border-t border-gray-100 p-4 flex justify-between items-center">
+                <span className="text-xs text-gray-500">Photo currently attached</span>
+                <button
+                  onClick={() => attachPhoto(null)}
+                  disabled={photoWorking === photoModal.id}
+                  className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+                >
+                  Remove photo
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -1,11 +1,11 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import ApprovalsClient from './ApprovalsClient';
 import type { ApprovalQueueItem } from '@/lib/types';
 
 export const revalidate = 0;
 
 export default async function ApprovalsPage() {
-  const supabase = createClient();
+  const supabase = createServiceClient();
 
   const { data: items, error } = await supabase
     .from('approval_queue')

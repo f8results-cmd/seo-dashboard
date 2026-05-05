@@ -1,9 +1,11 @@
 /**
  * Proxy approval queue actions to the Railway backend.
  * POST /api/approval-queue/{id}?action=approve|reject|edit|publish|approve-and-publish
+ * PATCH /api/approval-queue/{id} — update content_data fields (e.g. photo_url) directly in Supabase
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createServiceClient } from '@/lib/supabase/server';
 
 const RAILWAY_URL = process.env.RAILWAY_URL ?? process.env.NEXT_PUBLIC_RAILWAY_URL ?? '';
 
@@ -41,4 +43,37 @@ export async function POST(
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 502 });
   }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const { id } = params;
+  const body = await req.json().catch(() => ({}));
+
+  const supabase = createServiceClient();
+
+  const { data: item, error: fetchErr } = await supabase
+    .from('approval_queue')
+    .select('content_data')
+    .eq('id', id)
+    .single();
+
+  if (fetchErr || !item) {
+    return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+  }
+
+  const newContentData = { ...(item.content_data as Record<string, unknown>), ...body };
+
+  const { error: updateErr } = await supabase
+    .from('approval_queue')
+    .update({ content_data: newContentData })
+    .eq('id', id);
+
+  if (updateErr) {
+    return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, content_data: newContentData });
 }
