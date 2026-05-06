@@ -244,16 +244,15 @@ export default function GBPPostsTab({ client }: { client: Client }) {
   const [genMsg, setGenMsg]         = useState('');
 
   async function generateNextMonthPosts() {
-    if (!RAILWAY_URL) { setGenMsg('RAILWAY_URL not configured.'); return; }
     setGenerating(true);
     setGenMsg('');
     try {
-      const res = await fetch(`${RAILWAY_URL}/generate-next-month-posts/${clientId}`, { method: 'POST' });
+      const res = await fetch(`/api/generate-posts/${clientId}`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setGenMsg('4 posts queued for approval — review them in Approvals.');
+        setGenMsg(data.message ?? `${data.queued ?? 0} posts queued for approval — review them in Approvals.`);
       } else {
-        const txt = await res.text();
-        setGenMsg(`Error: ${txt.slice(0, 120)}`);
+        setGenMsg(`Error: ${data.error ?? res.statusText}`);
       }
     } catch {
       setGenMsg('Could not reach backend.');
