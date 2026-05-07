@@ -24,11 +24,21 @@ const DASH_RE = /[—–]/;
 
 const URL_RE = /(https?:\/\/|www\.|\S+\.(com|net|au|org|io|co)\b)/i;
 
-// eslint-disable-next-line no-misleading-character-class
-const EMOJI_RE = new RegExp(
-  '[😀-🙏🌀-🗿🚀-🛿' +
-  '🇠-🇿☀-➿🤀-🧿✂-➰]',
-);
+function containsEmoji(text: string): boolean {
+  for (const char of text) {
+    const cp = char.codePointAt(0) ?? 0;
+    if (
+      (cp >= 0x1F600 && cp <= 0x1F64F) ||
+      (cp >= 0x1F300 && cp <= 0x1F5FF) ||
+      (cp >= 0x1F680 && cp <= 0x1F6FF) ||
+      (cp >= 0x1F1E0 && cp <= 0x1F1FF) ||
+      (cp >= 0x2600  && cp <= 0x27BF)  ||
+      (cp >= 0x1F900 && cp <= 0x1F9FF) ||
+      (cp >= 0x2702  && cp <= 0x27B0)
+    ) return true;
+  }
+  return false;
+}
 
 function validatePost(text: string): { valid: boolean; violations: string[] } {
   const violations: string[] = [];
@@ -39,7 +49,7 @@ function validatePost(text: string): { valid: boolean; violations: string[] } {
   if (cta) violations.push(`forbidden CTA: "${cta[0]}"`);
   if (DASH_RE.test(text)) violations.push('contains em/en-dash');
   if (URL_RE.test(text)) violations.push('contains URL or domain');
-  if (EMOJI_RE.test(text)) violations.push('contains emoji');
+  if (containsEmoji(text)) violations.push('contains emoji');
   return { valid: violations.length === 0, violations };
 }
 
