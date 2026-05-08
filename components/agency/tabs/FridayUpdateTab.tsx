@@ -1,22 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, X, Sparkles, Inbox, Send, CheckCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, X, Inbox, Send, CheckCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { format, parseISO, startOfWeek, endOfWeek } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import type { Client, FridayUpdate } from '@/lib/types';
 
 interface WeekOption {
   week_number: number;
   week_label: string;
   ends_on: string;
-}
-
-interface WeekContext {
-  rolloutItemsDone: string[];
-  postsPublished: number;
-  reviewsResponded: number;
-  citationsSubmitted: number;
 }
 
 // ── Dynamic bullet list ───────────────────────────────────────────────────────
@@ -86,8 +79,6 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
 
   // UI state
   const [weekOptions,     setWeekOptions]     = useState<WeekOption[]>([]);
-  const [weekContext,     setWeekContext]      = useState<WeekContext | null>(null);
-  const [loadingContext,  setLoadingContext]   = useState(false);
   const [history,         setHistory]         = useState<FridayUpdate[]>([]);
   const [userId,          setUserId]          = useState<string | null>(null);
   const [saving,          setSaving]          = useState(false);
@@ -116,43 +107,6 @@ export default function FridayUpdateTab({ client }: { client: Client }) {
   }, [client.id]);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  // Load week context when week changes
-  useEffect(() => {
-    if (!weekNumber) return;
-    setLoadingContext(true);
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString();
-    const weekEnd   = endOfWeek(new Date(), { weekStartsOn: 1 }).toISOString();
-
-    Promise.all([
-      supabase.from('client_rollout_items').select('label').eq('client_id', client.id)
-        .eq('completed', true).gte('completed_at', weekStart).lte('completed_at', weekEnd),
-      supabase.from('gbp_posts').select('id', { count: 'exact', head: true })
-        .eq('client_id', client.id).eq('status', 'posted').gte('scheduled_date', weekStart).lte('scheduled_date', weekEnd),
-      supabase.from('review_responses').select('id', { count: 'exact', head: true })
-        .eq('client_id', client.id).gte('created_at', weekStart).lte('created_at', weekEnd),
-    ]).then(([itemsRes, postsRes, reviewsRes]) => {
-      setWeekContext({
-        rolloutItemsDone: (itemsRes.data ?? []).map((i: { label: string }) => i.label),
-        postsPublished: postsRes.count ?? 0,
-        reviewsResponded: reviewsRes.count ?? 0,
-        citationsSubmitted: 0,
-      });
-      setLoadingContext(false);
-    });
-  }, [weekNumber, client.id]);
-
-  function autoSuggest() {
-    if (!weekContext) return;
-    const bullets: string[] = [];
-    weekContext.rolloutItemsDone.forEach(l => bullets.push(l));
-    if (weekContext.postsPublished > 0)
-      bullets.push(`${weekContext.postsPublished} GBP post${weekContext.postsPublished > 1 ? 's' : ''} published to Google`);
-    if (weekContext.reviewsResponded > 0)
-      bullets.push(`${weekContext.reviewsResponded} Google review response${weekContext.reviewsResponded > 1 ? 's' : ''} drafted`);
-    if (bullets.length === 0) bullets.push('No automated activity found this week');
-    setThisWeek(bullets);
-  }
 
   // Build the email body from structured fields
   function buildEmailBody(): string {
@@ -335,37 +289,7 @@ Figure 8 Results`;
 
           {/* This Week */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-semibold text-gray-800">THIS WEEK:</label>
-              <button
-                type="button"
-                onClick={autoSuggest}
-                disabled={!weekContext || loadingContext}
-                className="flex items-center gap-1 text-xs text-[#E8622A] hover:text-[#d05520] disabled:opacity-40 transition-colors"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                {loadingContext ? 'Loading…' : 'Auto-suggest from activity'}
-              </button>
-            </div>
-            {weekContext && !loadingContext && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {weekContext.rolloutItemsDone.length > 0 && (
-                  <span className="text-xs bg-green-50 text-green-700 border border-green-200 px-2 py-0.5 rounded-full">
-                    {weekContext.rolloutItemsDone.length} task{weekContext.rolloutItemsDone.length > 1 ? 's' : ''} completed
-                  </span>
-                )}
-                {weekContext.postsPublished > 0 && (
-                  <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
-                    {weekContext.postsPublished} GBP post{weekContext.postsPublished > 1 ? 's' : ''} published
-                  </span>
-                )}
-                {weekContext.reviewsResponded > 0 && (
-                  <span className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
-                    {weekContext.reviewsResponded} review response{weekContext.reviewsResponded > 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-            )}
+            <label className="block text-sm font-semibold text-gray-800 mb-2">THIS WEEK:</label>
             <BulletList
               bullets={thisWeek}
               onChange={setThisWeek}

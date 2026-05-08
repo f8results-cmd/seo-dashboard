@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, CheckSquare, Square, Zap, StickyNote, Inbox } from 'lucide-react';
+import { ChevronDown, ChevronRight, CheckSquare, Square, Zap, StickyNote } from 'lucide-react';
 import { differenceInDays, parseISO, startOfDay } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
 import type { Client } from '@/lib/types';
@@ -95,7 +95,6 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
   const [savingItem, setSavingItem] = useState<string | null>(null);
-  const [weekDraftMsg, setWeekDraftMsg] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -150,34 +149,6 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
         })));
       }
 
-      // Auto-draft friday_update if this completion finishes the week
-      if (newCompleted && client.email) {
-        const parentWeek = updatedWeeks.find(w => w.items.some(i => i.id === item.id));
-        if (parentWeek && parentWeek.items.every(i => i.completed)) {
-          const completedLabels = parentWeek.items.map(i => i.label);
-          const body = `Hi ${client.owner_name ?? client.business_name},\n\nGreat news — ${parentWeek.week_label} is now 100% complete!\n\nHere's what was accomplished:\n${completedLabels.map(l => `• ${l}`).join('\n')}\n\nWe'll be in touch with your next update.\n\nBest regards,\nFigure 8 Results`;
-          await fetch('/api/approval-queue', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              client_id:   client.id,
-              action_type: 'friday_update',
-              content_data: {
-                subject:       `${parentWeek.week_label} Complete — SEO Update`,
-                body,
-                to_email:      client.email,
-                business_name: client.business_name,
-                week_number:   parentWeek.week_number,
-                week_label:    parentWeek.week_label,
-                progress_pct:  100,
-                auto_drafted:  true,
-              },
-              status: 'pending',
-            }),
-          });
-          setWeekDraftMsg(`${parentWeek.week_label} is complete — a client update email has been queued for your approval.`);
-        }
-      }
     } finally {
       setSavingItem(null);
     }
@@ -269,15 +240,6 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
           />
         </div>
       </div>
-
-      {/* Week completion auto-draft notification */}
-      {weekDraftMsg && (
-        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-          <Inbox className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-          <span className="flex-1">{weekDraftMsg} <a href="/agency/approvals" className="underline font-medium">Review in Approvals →</a></span>
-          <button onClick={() => setWeekDraftMsg(null)} className="text-amber-500 hover:text-amber-700">×</button>
-        </div>
-      )}
 
       {/* Toolbar */}
       <div className="flex items-center justify-between">

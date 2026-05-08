@@ -71,6 +71,8 @@ export default function ApprovalsClient({ initialItems }: Props) {
   const [filterClient, setFilterClient] = useState<string>('');
   const [expanded, setExpanded]         = useState<Set<string>>(new Set());
   const [editing, setEditing]           = useState<Record<string, string>>({});
+  const [editingSubject, setEditingSubject] = useState<Record<string, string>>({});
+  const [editingToEmail, setEditingToEmail] = useState<Record<string, string>>({});
   const [working, setWorking]           = useState<Set<string>>(new Set());
   const [msg, setMsg]                   = useState<Record<string, string>>({});
   const [refreshing, setRefreshing]     = useState(false);
@@ -178,14 +180,28 @@ export default function ApprovalsClient({ initialItems }: Props) {
 
   async function saveEdit(item: ApprovalQueueItem) {
     const text = editing[item.id] ?? '';
-    const key = item.action_type === 'gbp_post' ? 'post_text'
-      : item.action_type === 'review_reply' ? 'draft_response'
-      : 'body';
-    const newContent = { ...(item.content_data as Record<string, unknown>), [key]: text };
+    let newContent: Record<string, unknown>;
+
+    if (item.action_type === 'friday_update') {
+      newContent = {
+        ...(item.content_data as Record<string, unknown>),
+        body: text,
+        subject: editingSubject[item.id] ?? (item.content_data as Record<string, unknown>).subject,
+        to_email: editingToEmail[item.id] ?? (item.content_data as Record<string, unknown>).to_email,
+      };
+    } else {
+      const key = item.action_type === 'gbp_post' ? 'post_text'
+        : item.action_type === 'review_reply' ? 'draft_response'
+        : 'body';
+      newContent = { ...(item.content_data as Record<string, unknown>), [key]: text };
+    }
+
     const ok = await callAction(item.id, 'edit', { content: newContent });
     if (ok) {
       patchItem(item.id, { edited_content: newContent as Record<string, unknown> });
       setEditing(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+      setEditingSubject(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+      setEditingToEmail(prev => { const n = { ...prev }; delete n[item.id]; return n; });
       setItemMsg(item.id, 'Edit saved.');
     }
   }
@@ -372,7 +388,32 @@ export default function ApprovalsClient({ initialItems }: Props) {
 
                     {/* Content preview / edit */}
                     {editText !== undefined ? (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
+                        {item.action_type === 'friday_update' && (
+                          <>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Subject</label>
+                              <input
+                                type="text"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#E8622A]"
+                                value={editingSubject[item.id] ?? ''}
+                                onChange={e => setEditingSubject(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Recipient</label>
+                              <input
+                                type="email"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#E8622A]"
+                                value={editingToEmail[item.id] ?? ''}
+                                onChange={e => setEditingToEmail(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-500 mb-1">Body</label>
+                            </div>
+                          </>
+                        )}
                         <textarea
                           className="w-full border border-gray-300 rounded-lg p-3 text-sm font-mono leading-relaxed resize-y min-h-[160px] focus:outline-none focus:border-[#E8622A]"
                           value={editText}
@@ -387,7 +428,11 @@ export default function ApprovalsClient({ initialItems }: Props) {
                             Save edit
                           </button>
                           <button
-                            onClick={() => setEditing(prev => { const n = { ...prev }; delete n[item.id]; return n; })}
+                            onClick={() => {
+                              setEditing(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+                              setEditingSubject(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+                              setEditingToEmail(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+                            }}
                             className="text-sm text-gray-500 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50"
                           >
                             Cancel
@@ -427,7 +472,14 @@ export default function ApprovalsClient({ initialItems }: Props) {
                     {item.status === 'pending' && (
                       <div className="flex flex-wrap gap-2 pt-1">
                         <button
-                          onClick={() => setEditing(prev => ({ ...prev, [item.id]: fullText }))}
+                          onClick={() => {
+                            setEditing(prev => ({ ...prev, [item.id]: fullText }));
+                            if (item.action_type === 'friday_update') {
+                              const d = (item.edited_content ?? item.content_data) as Record<string, unknown>;
+                              setEditingSubject(prev => ({ ...prev, [item.id]: String(d.subject ?? '') }));
+                              setEditingToEmail(prev => ({ ...prev, [item.id]: String(d.to_email ?? '') }));
+                            }
+                          }}
                           className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50"
                         >
                           <Edit3 className="w-3.5 h-3.5" /> Edit

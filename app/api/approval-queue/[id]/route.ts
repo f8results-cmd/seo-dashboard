@@ -217,11 +217,71 @@ export async function POST(
       return NextResponse.json({ error: errMsg }, { status: 422 });
     }
 
-    // ── Other action types (email-based) ──────────────────────────────────────
-    // friday_update, monthly_report, photo_reminder — require SendGrid which is
-    // Railway-side for now. Return a clear error so operator knows what's needed.
-    const errMsg = `Publishing ${actionType} requires the Railway backend (email send). Railway is currently down — fix Railway to publish this item type.`;
-    return NextResponse.json({ error: errMsg }, { status: 503 });
+    // ── friday_update — send via SendGrid ────────────────────────────────────
+    if (actionType === 'friday_update') {
+      const subject  = String(data.subject ?? 'Weekly SEO Update');
+      const body     = String(data.body ?? '');
+      const toEmail  = String(data.to_email ?? '');
+
+      if (!toEmail) {
+        return NextResponse.json({ error: 'No recipient email on this friday_update item' }, { status: 422 });
+      }
+
+      const sgRes = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email: toEmail }] }],
+          from: { email: process.env.SENDGRID_FROM_EMAIL ?? 'sebastian@figure8results.com' },
+          subject,
+          content: [{ type: 'text/plain', value: body }],
+          mail_settings: { bypass_list_management: { enable: true } },
+        }),
+        signal: AbortSignal.timeout(25_000),
+      });
+
+      if (!sgRes.ok) {
+        const errText = await sgRes.text().catch(() => '');
+        const errMsg = `SendGrid ${sgRes.status}: ${errText.slice(0, 300)}`;
+        await supabase.from('approval_queue').update({ status: 'error', publish_result: errMsg }).eq('id', id);
+        return NextResponse.json({ error: errMsg }, { status: 502 });
+      }
+
+      const result = `Email sent to ${toEmail}`;
+      await Promise.all([
+        supabase.from('approval_queue').update({
+          status: 'published',
+          published_at: now,
+          publish_result: result,
+        }).eq('id', id),
+        supabase.from('friday_updates').insert({
+          client_id:       item.client_id,
+          content:         body,
+          sent_at:         now,
+          delivery_method: 'email',
+          week_number:     (data.week_number as number | undefined) ?? null,
+        }),
+        supabase.from('clients').update({ last_friday_update: now }).eq('id', item.client_id),
+        supabase.from('outbound_log').insert({
+          client_id: item.client_id,
+          surface:   'friday_update',
+          recipient: toEmail,
+          subject,
+          content:   body,
+          sent_by:   'approval_queue',
+          sent_at:   now,
+        }),
+      ]);
+
+      return NextResponse.json({ ok: true, result });
+    }
+
+    // ── Other action types (not yet supported) ────────────────────────────────
+    const errMsg = `Publishing ${actionType} is not yet supported.`;
+    return NextResponse.json({ error: errMsg }, { status: 422 });
   }
 
   return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
