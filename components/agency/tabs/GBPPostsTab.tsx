@@ -356,7 +356,12 @@ export default function GBPPostsTab({ client }: { client: Client }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `gbp-posts-${clientId}.csv`;
+    const firstDate = subset.find(p => p.scheduled_date)?.scheduled_date;
+    const month = firstDate
+      ? format(parseISO(firstDate), 'yyyy-MM')
+      : format(new Date(), 'yyyy-MM');
+    const slug = client.business_name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    a.download = `${slug}-gbp-posts-${month}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }

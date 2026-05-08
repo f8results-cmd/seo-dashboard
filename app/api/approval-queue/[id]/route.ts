@@ -97,6 +97,23 @@ export async function POST(
       .update({ status: 'approved', approved_by: 'operator', approved_at: now })
       .eq('id', id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // For GBP posts: copy into gbp_posts so they appear in the GBP Posts tab
+    if (item.action_type === 'gbp_post') {
+      const data = (item.edited_content ?? item.content_data) as Record<string, unknown>;
+      const { error: insertErr } = await supabase.from('gbp_posts').insert({
+        client_id: item.client_id,
+        content: String(data.post_text ?? ''),
+        post_type: String(data.post_type ?? 'weekly'),
+        status: 'scheduled',
+        scheduled_date: item.scheduled_for ?? null,
+        image_url: (data.photo_url as string | undefined) ?? null,
+      });
+      if (insertErr) {
+        console.error('[approval-queue] gbp_posts insert failed:', insertErr.message);
+      }
+    }
+
     return NextResponse.json({ ok: true, status: 'approved' });
   }
 
