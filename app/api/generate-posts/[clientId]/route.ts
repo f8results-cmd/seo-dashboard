@@ -111,26 +111,63 @@ function validatePost(
   return { valid: violations.length === 0, violations };
 }
 
-// ── Scheduling ────────────────────────────────────────────────────────────────
+// ── Adelaide timezone + scheduling ────────────────────────────────────────────
 
-function nextMonthMondays(): string[] {
-  const now = new Date(Date.now() + 9.5 * 3600 * 1000);
-  const year = now.getUTCFullYear();
-  const month = now.getUTCMonth();
-  const nextMonth = month === 11 ? 0 : month + 1;
-  const nextYear = month === 11 ? year + 1 : year;
+const DAY_MAP: Record<string, number> = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+  thursday: 4, friday: 5, saturday: 6,
+};
 
-  const first = new Date(Date.UTC(nextYear, nextMonth, 1));
-  const dayOfWeek = first.getUTCDay();
-  const daysToMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
-  const firstMonday = new Date(first);
-  firstMonday.setUTCDate(first.getUTCDate() + daysToMonday);
+function firstSundayUtc(year: number, month: number): number {
+  // First Sunday of the given month (1-indexed), midnight UTC
+  const d = new Date(Date.UTC(year, month - 1, 1));
+  while (d.getUTCDay() !== 0) d.setUTCDate(d.getUTCDate() + 1);
+  return d.getTime();
+}
 
-  return Array.from({ length: 4 }, (_, i) => {
-    const d = new Date(firstMonday);
-    d.setUTCDate(firstMonday.getUTCDate() + i * 7);
-    d.setUTCHours(9, 30, 0, 0);
-    return d.toISOString();
+function adelaideOffsetMs(approxUtcMs: number): number {
+  // SA: ACDT (UTC+10:30) first Sunday Oct → first Sunday Apr
+  //     ACST (UTC+9:30)  first Sunday Apr → first Sunday Oct
+  const y = new Date(approxUtcMs).getUTCFullYear();
+  const aprSun = firstSundayUtc(y, 4);
+  const octSun = firstSundayUtc(y, 10);
+  const isACDT = approxUtcMs < aprSun || approxUtcMs >= octSun;
+  return (isACDT ? 10.5 : 9.5) * 3600 * 1000;
+}
+
+interface PostingSchedule {
+  preferred_days?: string[];
+  preferred_time?: string;
+}
+
+function scheduledPostDates(schedule: PostingSchedule | null, count = 4): string[] {
+  const dayName = (schedule?.preferred_days?.[0] ?? 'friday').toLowerCase().trim();
+  const targetWeekday = DAY_MAP[dayName] ?? 5; // default Friday
+
+  const timeParts = (schedule?.preferred_time ?? '08:00').split(':');
+  const localHour = Math.max(0, Math.min(23, parseInt(timeParts[0] ?? '8', 10)));
+  const localMin  = Math.max(0, Math.min(59, parseInt(timeParts[1] ?? '0', 10)));
+
+  // Current Adelaide local date (approximate with ACST UTC+9:30)
+  const nowLocalMs = Date.now() + 9.5 * 3600 * 1000;
+  // 4 weeks out, still expressed as a "local" date via UTC getters
+  const startLocal = new Date(nowLocalMs + 28 * 24 * 3600 * 1000);
+
+  // Advance to the first occurrence of targetWeekday on or after 4-week mark
+  const base = new Date(
+    Date.UTC(startLocal.getUTCFullYear(), startLocal.getUTCMonth(), startLocal.getUTCDate()),
+  );
+  while (base.getUTCDay() !== targetWeekday) base.setUTCDate(base.getUTCDate() + 1);
+
+  return Array.from({ length: count }, (_, i) => {
+    // Date components for week i (Date.UTC handles month/year overflow automatically)
+    const localAsUtc = Date.UTC(
+      base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + i * 7,
+      localHour, localMin, 0, 0,
+    );
+    // Subtract Adelaide offset to get true UTC
+    const offsetMs = adelaideOffsetMs(localAsUtc - 9.5 * 3600 * 1000);
+    return new Date(localAsUtc - offsetMs).toISOString();
   });
 }
 
@@ -197,7 +234,7 @@ export async function POST(
   const { data: client, error: clientErr } = await supabase
     .from('clients')
     .select(
-      'id, business_name, niche, city, state, phone, live_url, website_url, manual_services, website_data, ghl_location_id, ghl_api_key, gbp_location_name, target_suburbs',
+      'id, business_name, niche, city, state, phone, live_url, website_url, manual_services, website_data, ghl_location_id, ghl_api_key, gbp_location_name, target_suburbs, gbp_posting_schedule',
     )
     .eq('id', clientId)
     .single();
@@ -228,6 +265,7 @@ export async function POST(
     ghl_api_key,
     gbp_location_name,
     target_suburbs,
+    gbp_posting_schedule,
   } = client;
 
   const useGhl = Boolean(ghl_location_id && ghl_api_key);
@@ -256,14 +294,20 @@ export async function POST(
   const suburbs = [0, 1, 2, 3].map(i => suburbPool[i % suburbPool.length]);
   const services = [0, 1, 2, 3].map(i => serviceList[i % serviceList.length]);
   const postTypes = POST_TYPES;
-  const scheduledDates = nextMonthMondays();
+  const scheduledDates = scheduledPostDates(
+    (gbp_posting_schedule as PostingSchedule | null) ?? null,
+  );
 
   const firstScheduled = new Date(scheduledDates[0]);
   const monthName = firstScheduled.toLocaleString('en-AU', {
     month: 'long',
     timeZone: 'Australia/Adelaide',
   });
-  const monthNum = firstScheduled.getUTCMonth() + 1;
+  // Use Adelaide local month for season (UTC date may be the previous calendar day)
+  const firstScheduledAdelaide = new Date(
+    firstScheduled.getTime() + adelaideOffsetMs(firstScheduled.getTime()),
+  );
+  const monthNum = firstScheduledAdelaide.getUTCMonth() + 1;
   const season = getAusSeason(monthNum);
 
   // ── Build combined research + generation prompt ───────────────────────────
