@@ -198,27 +198,32 @@ Figure 8 Results`;
     const body = buildEmailBody();
     const subject = buildSubject();
 
-    const { error } = await supabase.from('approval_queue').insert({
-      client_id:    client.id,
-      action_type:  'friday_update',
-      content_data: {
-        subject,
-        body,
-        to_email:       client.email,
-        business_name:  client.business_name,
-        week_number:    weekNumber || null,
-        progress_pct:   progressPct,
-        this_week:      thisWeek.filter(b => b.trim()),
-        next_week:      nextWeek.filter(b => b.trim()),
-        notes:          notes.trim(),
-        operator_notes: operatorNotes.trim(),
-        first_name:     firstName,
-      },
-      status: 'pending',
+    const res = await fetch('/api/approval-queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id:    client.id,
+        action_type:  'friday_update',
+        content_data: {
+          subject,
+          body,
+          to_email:       client.email,
+          business_name:  client.business_name,
+          week_number:    weekNumber || null,
+          progress_pct:   progressPct,
+          this_week:      thisWeek.filter(b => b.trim()),
+          next_week:      nextWeek.filter(b => b.trim()),
+          notes:          notes.trim(),
+          operator_notes: operatorNotes.trim(),
+          first_name:     firstName,
+        },
+        status: 'pending',
+      }),
     });
+    const result = await res.json().catch(() => ({}));
 
-    if (error) {
-      setMsg(`Failed to queue: ${error.message}`);
+    if (!res.ok) {
+      setMsg(`Failed to queue: ${result.error ?? res.statusText}`);
     } else {
       setQueued(true);
       resetForm();

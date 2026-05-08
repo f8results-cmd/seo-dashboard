@@ -156,20 +156,24 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
         if (parentWeek && parentWeek.items.every(i => i.completed)) {
           const completedLabels = parentWeek.items.map(i => i.label);
           const body = `Hi ${client.owner_name ?? client.business_name},\n\nGreat news — ${parentWeek.week_label} is now 100% complete!\n\nHere's what was accomplished:\n${completedLabels.map(l => `• ${l}`).join('\n')}\n\nWe'll be in touch with your next update.\n\nBest regards,\nFigure 8 Results`;
-          await supabase.from('approval_queue').insert({
-            client_id:   client.id,
-            action_type: 'friday_update',
-            content_data: {
-              subject:       `${parentWeek.week_label} Complete — SEO Update`,
-              body,
-              to_email:      client.email,
-              business_name: client.business_name,
-              week_number:   parentWeek.week_number,
-              week_label:    parentWeek.week_label,
-              progress_pct:  100,
-              auto_drafted:  true,
-            },
-            status: 'pending',
+          await fetch('/api/approval-queue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              client_id:   client.id,
+              action_type: 'friday_update',
+              content_data: {
+                subject:       `${parentWeek.week_label} Complete — SEO Update`,
+                body,
+                to_email:      client.email,
+                business_name: client.business_name,
+                week_number:   parentWeek.week_number,
+                week_label:    parentWeek.week_label,
+                progress_pct:  100,
+                auto_drafted:  true,
+              },
+              status: 'pending',
+            }),
           });
           setWeekDraftMsg(`${parentWeek.week_label} is complete — a client update email has been queued for your approval.`);
         }
