@@ -266,12 +266,16 @@ export async function POST(
   const { data: client, error: clientErr } = await supabase
     .from('clients')
     .select(
-      'id, business_name, niche, city, state, phone, live_url, website_url, manual_services, gbp_services, website_data, ghl_location_id, ghl_api_key, gbp_location_name, target_suburbs, gbp_posting_schedule',
+      'id, business_name, niche, city, state, phone, live_url, website_url, manual_services, website_data, ghl_location_id, ghl_api_key, gbp_location_name, target_suburbs, gbp_posting_schedule',
     )
     .eq('id', clientId)
     .single();
 
-  if (clientErr || !client) {
+  if (clientErr) {
+    const status = clientErr.code === 'PGRST116' ? 404 : 500;
+    return NextResponse.json({ error: clientErr.message }, { status });
+  }
+  if (!client) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
@@ -292,7 +296,6 @@ export async function POST(
     live_url,
     website_url,
     manual_services,
-    gbp_services,
     website_data,
     ghl_location_id,
     ghl_api_key,
@@ -314,12 +317,8 @@ export async function POST(
         ? suburbPages.map(p => p.suburb_name)
         : [city ?? 'local area', 'Norwood', 'Unley', 'Burnside', 'Prospect', 'Glenelg'];
 
-  // Service list — prefer manual_services, fall back to gbp_services
-  const rawManual = (manual_services ?? '') as string;
-  const rawGbp = Array.isArray(gbp_services)
-    ? (gbp_services as string[]).join(', ')
-    : (gbp_services as string | null ?? '');
-  const rawServices = rawManual || rawGbp;
+  // Service list from manual_services
+  const rawServices = (manual_services ?? '') as string;
   const serviceList: string[] = rawServices
     .split(/[\n,]+/)
     .map(s => s.trim())
