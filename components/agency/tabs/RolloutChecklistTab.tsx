@@ -90,7 +90,7 @@ export default function RolloutChecklistTab({ client }: { client: Client }) {
   const [weeks, setWeeks] = useState<RolloutWeek[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialising, setInitialising] = useState(false);
-  const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set([1]));
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
   const [showIncompleteOnly, setShowIncompleteOnly] = useState(false);
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState('');

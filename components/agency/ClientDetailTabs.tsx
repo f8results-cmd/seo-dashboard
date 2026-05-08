@@ -8,9 +8,7 @@ import GBPSetupTab          from './tabs/GBPSetupTab';
 import GBPPostsTab          from './tabs/GBPPostsTab';
 import WebsiteTab           from './tabs/WebsiteTab';
 import PhotosTab            from './tabs/PhotosTab';
-import ReviewsTab           from './tabs/ReviewsTab';
 import BacklinksTab         from './tabs/BacklinksTab';
-import AIEditorTab          from './tabs/AIEditorTab';
 import RankTrackingTab      from './tabs/RankTrackingTab';
 import FridayUpdateTab      from './tabs/FridayUpdateTab';
 import MonthlyMetricsTab    from './tabs/MonthlyMetricsTab';
@@ -26,11 +24,9 @@ const TABS = [
   { id: 'gbp-posts',      label: 'GBP Posts' },
   { id: 'website',        label: 'Website' },
   { id: 'photos',         label: 'Photos' },
-  { id: 'reviews',        label: 'Reviews' },
   { id: 'backlinks',      label: 'Backlinks & Citations' },
   { id: 'rank-tracking',  label: 'Rank Tracking' },
   { id: 'monthly-metrics',label: 'Monthly Metrics' },
-  { id: 'ai-editor',      label: 'AI Editor' },
   { id: 'friday',         label: 'Friday Updates' },
 ];
 
@@ -41,11 +37,9 @@ function renderTabContent(tabId: string, client: Client, onRefresh?: () => void)
     case 'gbp-posts':        return <GBPPostsTab client={client} />;
     case 'website':          return <WebsiteTab client={client} />;
     case 'photos':           return <PhotosTab client={client} onUpdate={onRefresh} />;
-    case 'reviews':          return <ReviewsTab client={client} />;
     case 'backlinks':        return <BacklinksTab client={client} />;
     case 'rank-tracking':    return <RankTrackingTab clientId={client.id} />;
     case 'monthly-metrics':  return <MonthlyMetricsTab client={client} />;
-    case 'ai-editor':        return <AIEditorTab client={client} />;
     case 'friday':           return <FridayUpdateTab client={client} />;
     default:                 return null;
   }

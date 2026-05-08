@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Upload, X, Tag, Loader2, Star, StarOff, Trash2, ZoomIn } from 'lucide-react';
+import { Upload, X, Tag, Loader2, Star, StarOff, Trash2, ZoomIn, FolderOpen, ExternalLink, Check } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { Client } from '@/lib/types';
 
@@ -203,12 +203,15 @@ export default function PhotosTab({ client }: { client: Client; onUpdate?: () =>
   const supabase = createClient();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [photos,    setPhotos]    = useState<ClientPhoto[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [filter,    setFilter]    = useState('All');
-  const [enlarged,  setEnlarged]  = useState<ClientPhoto | null>(null);
-  const [uploadErr, setUploadErr] = useState('');
+  const [photos,      setPhotos]      = useState<ClientPhoto[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [uploading,   setUploading]   = useState(false);
+  const [filter,      setFilter]      = useState('All');
+  const [enlarged,    setEnlarged]    = useState<ClientPhoto | null>(null);
+  const [uploadErr,   setUploadErr]   = useState('');
+  const [driveUrl,    setDriveUrl]    = useState(client.photo_drive_url ?? '');
+  const [savingDrive, setSavingDrive] = useState(false);
+  const [driveSaved,  setDriveSaved]  = useState(false);
 
   const loadPhotos = useCallback(async () => {
     const { data } = await supabase
@@ -221,6 +224,18 @@ export default function PhotosTab({ client }: { client: Client; onUpdate?: () =>
   }, [client.id]);
 
   useEffect(() => { loadPhotos(); }, [loadPhotos]);
+
+  async function saveDriveUrl() {
+    setSavingDrive(true);
+    await fetch(`/api/clients/${client.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photo_drive_url: driveUrl.trim() || null }),
+    });
+    setSavingDrive(false);
+    setDriveSaved(true);
+    setTimeout(() => setDriveSaved(false), 2000);
+  }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -264,6 +279,43 @@ export default function PhotosTab({ client }: { client: Client; onUpdate?: () =>
 
   return (
     <div className="p-6 space-y-5">
+
+      {/* Google Drive link */}
+      <div className="border border-gray-200 rounded-xl p-4 space-y-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+          <FolderOpen className="w-4 h-4 text-[#E8622A]" />
+          Client Google Drive folder
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="url"
+            value={driveUrl}
+            onChange={e => { setDriveUrl(e.target.value); setDriveSaved(false); }}
+            placeholder="https://drive.google.com/drive/folders/…"
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E8622A]/30"
+          />
+          <button
+            onClick={saveDriveUrl}
+            disabled={savingDrive}
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#E8622A] text-white text-sm font-medium rounded-lg hover:bg-[#d05520] transition-colors disabled:opacity-50 shrink-0"
+          >
+            {driveSaved ? <Check className="w-4 h-4" /> : savingDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {driveSaved ? 'Saved' : 'Save'}
+          </button>
+          {driveUrl && (
+            <a
+              href={driveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-3 py-2 border border-gray-200 text-sm text-gray-600 rounded-lg hover:bg-gray-50 transition-colors shrink-0"
+            >
+              <ExternalLink className="w-4 h-4" />
+              Open
+            </a>
+          )}
+        </div>
+      </div>
+
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1 flex-wrap flex-1">
